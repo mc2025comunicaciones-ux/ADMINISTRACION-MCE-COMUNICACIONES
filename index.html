@@ -711,8 +711,12 @@
           <button class="btn btn-primary" type="button" onclick="guardarConfigSync()">Guardar Configuración</button>
           <button class="btn btn-outline" type="button" onclick="probarConexionSync()">Probar Conexión</button>
           <button class="btn btn-outline" type="button" onclick="sincronizarTodosClientes()">Sincronizar Todos los Clientes Ahora</button>
+          <button class="btn btn-green" type="button" onclick="importarDatosDesdeNube()">Importar / Actualizar Datos en Este Dispositivo</button>
         </div>
         <div class="coord-display" id="syncStatus" style="margin-top:16px; display:none;"></div>
+        <div class="coord-display" style="margin-top:12px; color:var(--text-muted); align-items:flex-start; line-height:1.6;">
+          Usa "Importar / Actualizar Datos en Este Dispositivo" cada vez que abras el panel en un teléfono u otro computador distinto, para traer los clientes, planes, pagos y equipos más recientes guardados en la Hoja.
+        </div>
       </div>
 
       <div class="panel">
@@ -1544,6 +1548,161 @@ async function syncReciboToSheet(cliente, pago, base64Pdf){
   }
 }
 
+/* Envía (crea o actualiza) un plan en la Hoja de Google */
+async function syncPlanToSheet(plan){
+  const url = getSyncUrl();
+  if(!url) return { ok:false, skip:true };
+  const payload = { action:'upsertPlan', data:{ id:plan.id, nombre:plan.nombre, velocidad:plan.velocidad, precio:plan.precio } };
+  try{
+    const res = await fetch(url, { method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' }, body: JSON.stringify(payload) });
+    return await res.json().catch(()=>({ok:true}));
+  }catch(err){ return { ok:false, error: err.message }; }
+}
+
+/* Envía (crea o actualiza) un pago en la Hoja de Google */
+async function syncPagoToSheet(cliente, pago){
+  const url = getSyncUrl();
+  if(!url) return { ok:false, skip:true };
+  const payload = { action:'upsertPago', data:{
+    id: pago.id, cedulaCliente: cliente.cedula, nombreCliente: cliente.nombre,
+    periodo: pago.periodo, fecha: pago.fecha, valor: pago.valor,
+    autorizadoPor: pago.autorizadoPor, numero: pago.numero
+  }};
+  try{
+    const res = await fetch(url, { method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' }, body: JSON.stringify(payload) });
+    return await res.json().catch(()=>({ok:true}));
+  }catch(err){ return { ok:false, error: err.message }; }
+}
+
+/* Envía (crea o actualiza) un equipo en la Hoja de Google */
+async function syncEquipoToSheet(equipo){
+  const url = getSyncUrl();
+  if(!url) return { ok:false, skip:true };
+  const clienteAsociado = equipo.clienteId ? getClientes().find(c=>c.id===equipo.clienteId) : null;
+  const payload = { action:'upsertEquipo', data:{
+    id: equipo.id, tipo: equipo.tipo, nombre: equipo.nombre, serial: equipo.serial,
+    ip: equipo.ip, mac: equipo.mac, cedulaCliente: clienteAsociado ? clienteAsociado.cedula : ''
+  }};
+  try{
+    const res = await fetch(url, { method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' }, body: JSON.stringify(payload) });
+    return await res.json().catch(()=>({ok:true}));
+  }catch(err){ return { ok:false, error: err.message }; }
+}
+
+/* Trae clientes, planes, pagos y equipos desde la Hoja y los guarda en este dispositivo */
+async function importarDatosDesdeNube(){
+  const url = getSyncUrl();
+  if(!url){ showToast('Primero configura y guarda la URL del Web App'); return; }
+  mostrarEstadoSync('Importando datos desde la nube...', true);
+  try{
+    const res = await fetch(url, {
+      method:'POST',
+      headers:{ 'Content-Type':'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action:'listarTodo' })
+    });
+    const resp = await res.json();
+    if(!resp || !resp.ok){
+      mostrarEstadoSync('Error al importar: ' + (resp && resp.error ? resp.error : 'sin respuesta'), false);
+      return;
+    }
+    const remoto = resp.data || { clientes:[], planes:[], pagos:[], equipos:[] };
+
+    // ---- Planes: se fusionan por nombre (no tienen cédula como llave) ----
+    const planesLocales = getPlanes();
+    const mapaPlanesPorNombre = {};
+    planesLocales.forEach(p=> mapaPlanesPorNombre[p.nombre.trim().toLowerCase()] = p);
+    (remoto.planes||[]).forEach(rp=>{
+      const key = (rp.nombre||'').trim().toLowerCase();
+      if(mapaPlanesPorNombre[key]){
+        Object.assign(mapaPlanesPorNombre[key], { velocidad: rp.velocidad, precio: rp.precio });
+      } else {
+        const nuevo = { id: rp.id || ('pl_'+Date.now()+Math.random().toString(36).slice(2,6)), nombre: rp.nombre, velocidad: rp.velocidad, precio: rp.precio };
+        planesLocales.push(nuevo);
+        mapaPlanesPorNombre[key] = nuevo;
+      }
+    });
+    setPlanes(planesLocales);
+
+    // ---- Clientes: se fusionan por cédula (llave estable entre dispositivos) ----
+    const clientesLocales = getClientes();
+    const mapaClientesPorCedula = {};
+    clientesLocales.forEach(c=> mapaClientesPorCedula[limpiarCedulaJS(c.cedula)] = c);
+    (remoto.clientes||[]).forEach(rc=>{
+      const cedulaKey = limpiarCedulaJS(rc.cedula);
+      if(!cedulaKey) return;
+      let local = mapaClientesPorCedula[cedulaKey];
+      const planCoincidente = planesLocales.find(p => (p.nombre||'').trim().toLowerCase() === (rc.plan||'').split(' — ')[0].trim().toLowerCase()) || null;
+      if(local){
+        local.nombre = rc.nombre || local.nombre;
+        local.estado = mapEstadoDesdeHoja(rc.estado) || local.estado;
+        local.vereda = rc.vereda || local.vereda;
+        local.fechaVencimiento = rc.vencimiento || local.fechaVencimiento;
+        local.precio = rc.valor || local.precio;
+        local.puntoConexion = rc.puntoConexion || local.puntoConexion;
+      } else {
+        local = {
+          id: 'cli_' + cedulaKey,
+          nombre: rc.nombre || '', cedula: rc.cedula || '', vereda: rc.vereda || '',
+          telefono: '', whatsapp: '', estado: mapEstadoDesdeHoja(rc.estado) || 'activo',
+          corte: 1, fechaVencimiento: rc.vencimiento || '',
+          planId: planCoincidente ? planCoincidente.id : null,
+          planNombre: rc.plan || 'Sin plan', planVelocidad: planCoincidente ? planCoincidente.velocidad : 0,
+          precio: Number(rc.valor||0), puntoConexion: rc.puntoConexion || '', lat:null, lng:null
+        };
+        clientesLocales.push(local);
+        mapaClientesPorCedula[cedulaKey] = local;
+      }
+    });
+    setClientes(clientesLocales);
+
+    // ---- Pagos: se fusionan por id (si no existe localmente, se crea) ----
+    const pagosLocales = getPagos();
+    const idsPagosLocales = new Set(pagosLocales.map(p=>p.id));
+    (remoto.pagos||[]).forEach(rp=>{
+      if(idsPagosLocales.has(rp.id)) return;
+      const clienteAsoc = mapaClientesPorCedula[limpiarCedulaJS(rp.cedulaCliente)];
+      pagosLocales.push({
+        id: rp.id, clienteId: clienteAsoc ? clienteAsoc.id : null,
+        periodo: rp.periodo, fecha: rp.fecha, valor: Number(rp.valor||0),
+        autorizadoPor: rp.autorizadoPor, numero: rp.numero
+      });
+    });
+    setPagos(pagosLocales);
+
+    // ---- Equipos: se fusionan por id ----
+    const equiposLocales = getEquipos();
+    const idsEquiposLocales = new Set(equiposLocales.map(e=>e.id));
+    (remoto.equipos||[]).forEach(re=>{
+      if(idsEquiposLocales.has(re.id)) return;
+      const clienteAsoc = mapaClientesPorCedula[limpiarCedulaJS(re.cedulaCliente)];
+      equiposLocales.push({
+        id: re.id, tipo: re.tipo, nombre: re.nombre, serial: re.serial,
+        ip: re.ip, mac: re.mac, clienteId: clienteAsoc ? clienteAsoc.id : null
+      });
+    });
+    setEquipos(equiposLocales);
+
+    // Refresca toda la interfaz con los datos ya combinados
+    renderStats(); renderClientesTable(); renderPlanesTable();
+    renderPagosTable(document.getElementById('buscarPago').value);
+    renderEquiposTable();
+
+    mostrarEstadoSync(`✔ Importado: ${(remoto.clientes||[]).length} clientes, ${(remoto.planes||[]).length} planes, ${(remoto.pagos||[]).length} pagos, ${(remoto.equipos||[]).length} equipos revisados.`, true);
+    showToast('Datos importados desde la nube');
+    logAccion('Importación desde la nube', 'Clientes/Planes/Pagos/Equipos sincronizados a este dispositivo');
+  }catch(err){
+    mostrarEstadoSync('No se pudo importar: ' + err.message, false);
+  }
+}
+function limpiarCedulaJS(c){ return String(c||'').replace(/[.,\s]/g,'').trim(); }
+function mapEstadoDesdeHoja(estadoTexto){
+  const t = (estadoTexto||'').toLowerCase();
+  if(t.startsWith('activo')) return 'activo';
+  if(t.startsWith('suspend')) return 'suspendido';
+  if(t.startsWith('bloque')) return 'bloqueado';
+  return null;
+}
+
 async function sincronizarTodosClientes(){
   const url = getSyncUrl();
   if(!url){ showToast('Primero configura y guarda la URL del Web App'); return; }
@@ -1838,6 +1997,8 @@ document.getElementById('formPlan').addEventListener('submit', function(e){
   closeModal('modalPlan');
   showToast('Plan guardado correctamente');
   logAccion(esNuevo ? 'Plan creado' : 'Plan editado', plan.nombre + ' — ' + plan.velocidad + ' Mbps — ' + fmtMoney(plan.precio));
+
+  if(getSyncUrl() && getSyncAuto()){ syncPlanToSheet(plan); }
 });
 
 function renderPlanSelectInCliente(selectedPlanId){
@@ -2397,6 +2558,8 @@ document.getElementById('formPago').addEventListener('submit', function(e){
   // Genera y descarga el PDF automáticamente al confirmar el pago
   // (esto también sincroniza la nueva fecha de corte en la Hoja de Google)
   generarPDFRecibo(c, pago);
+
+  if(getSyncUrl() && getSyncAuto()){ syncPagoToSheet(c, pago); }
 });
 
 function reiniciarRecaudo(){
@@ -2752,6 +2915,8 @@ document.getElementById('formEquipo').addEventListener('submit', function(e){
   closeModal('modalEquipo');
   showToast('Equipo guardado correctamente');
   logAccion(esNuevo ? 'Equipo creado' : 'Equipo editado', equipo.nombre + ' (' + equipo.tipo + ')');
+
+  if(getSyncUrl() && getSyncAuto()){ syncEquipoToSheet(equipo); }
 });
 
 /* ===================== INIT ===================== */
