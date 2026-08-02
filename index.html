@@ -279,10 +279,41 @@
     #reciboPrintWrap .modal{ box-shadow:none !important; border:none !important; max-width:100% !important; }
   }
 
+  /* ---------- MENU TOGGLE (móvil) ---------- */
+  #menuToggle{
+    display:none; align-items:center; justify-content:center; width:38px; height:38px; flex-shrink:0;
+    background:var(--bg-card); border:1px solid var(--border); border-radius:9px; color:var(--text-primary);
+    cursor:pointer; margin-right:12px;
+  }
+  #menuToggle svg{ width:19px; height:19px; }
+  #sidebarOverlay{
+    display:none; position:fixed; inset:0; background:rgba(2,4,15,0.6); z-index:49;
+  }
+  #sidebarOverlay.show{ display:block; }
+
   @media (max-width:900px){
-    #sidebar{ position:fixed; left:-260px; transition:.2s; }
+    body{ display:block; }
+    #sidebar{ position:fixed; left:-260px; top:0; transition:.2s; z-index:60; }
     #sidebar.open{ left:0; }
+    #menuToggle{ display:flex; }
+    #topbar{ padding:14px 16px; flex-wrap:wrap; gap:10px; }
+    #topbar .page-title{ font-size:16px; }
+    #content{ padding:16px; }
+    .hero-banner{ padding:22px 18px; }
+    .hero-banner h1{ font-size:24px; }
+    .grid-cards{ grid-template-columns:1fr 1fr; gap:12px; }
     .form-grid{ grid-template-columns:1fr; }
+    .modal{ padding:20px 18px 22px; }
+    .panel{ padding:16px; }
+    .panel-head{ flex-direction:column; align-items:flex-start; }
+    .search-box{ max-width:100%; }
+    .user-chip .uname, .user-chip .urole{ max-width:110px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  }
+
+  @media (max-width:480px){
+    .grid-cards{ grid-template-columns:1fr; }
+    .hero-banner h1{ font-size:21px; }
+    .stat-value{ font-size:22px; }
   }
 </style>
 </head>
@@ -365,13 +396,19 @@
     </button>
   </div>
 </aside>
+<div id="sidebarOverlay"></div>
 
 <!-- ================= MAIN ================= -->
 <div id="main">
   <div id="topbar">
-    <div>
-      <div class="page-title" id="pageTitle">Inicio</div>
-      <div class="page-sub" id="pageSub">Resumen operativo de tu red</div>
+    <div style="display:flex; align-items:center;">
+      <button type="button" id="menuToggle" aria-label="Abrir menú">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+      </button>
+      <div>
+        <div class="page-title" id="pageTitle">Inicio</div>
+        <div class="page-sub" id="pageSub">Resumen operativo de tu red</div>
+      </div>
     </div>
     <div class="user-chip">
       <div class="user-avatar" id="userChipAvatar">A</div>
@@ -1966,9 +2003,27 @@ function irAVista(v){
   if(v==='configuracion'){ cargarConfigSyncUI(); }
 }
 document.querySelectorAll('.navlink').forEach(link=>{
-  link.addEventListener('click', ()=> irAVista(link.dataset.view));
+  link.addEventListener('click', ()=>{
+    irAVista(link.dataset.view);
+    cerrarSidebarMovil();
+  });
 });
 function irAPagos(){ irAVista('pagos'); }
+
+/* ===================== MENÚ MÓVIL ===================== */
+function abrirSidebarMovil(){
+  document.getElementById('sidebar').classList.add('open');
+  document.getElementById('sidebarOverlay').classList.add('show');
+}
+function cerrarSidebarMovil(){
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebarOverlay').classList.remove('show');
+}
+document.getElementById('menuToggle').addEventListener('click', ()=>{
+  const sb = document.getElementById('sidebar');
+  sb.classList.contains('open') ? cerrarSidebarMovil() : abrirSidebarMovil();
+});
+document.getElementById('sidebarOverlay').addEventListener('click', cerrarSidebarMovil);
 
 document.getElementById('fechaHoy').textContent = new Date().toLocaleDateString('es-CO',{weekday:'long', day:'2-digit', month:'long', year:'numeric'});
 
