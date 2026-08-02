@@ -347,6 +347,10 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.2 3.2"/></svg>
       Logs
     </button>
+    <button type="button" class="navlink" data-view="usuarios">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      Usuarios
+    </button>
   </nav>
   <div class="sidebar-foot">
     <div><span class="status-dot"></span>Sistema operativo</div>
@@ -366,10 +370,10 @@
       <div class="page-sub" id="pageSub">Resumen operativo de tu red</div>
     </div>
     <div class="user-chip">
-      <div class="user-avatar">A</div>
+      <div class="user-avatar" id="userChipAvatar">A</div>
       <div>
-        <div class="uname">Admin</div>
-        <div class="urole">Administrador</div>
+        <div class="uname" id="userChipName">Admin</div>
+        <div class="urole" id="userChipRole">Administrador</div>
       </div>
     </div>
   </div>
@@ -440,7 +444,7 @@
         </div>
       </div>
 
-      <div class="panel">
+      <div class="panel" id="panelPagosInicio">
         <div class="panel-head">
           <div>
             <h2>Estado de Pagos — Mes Actual</h2>
@@ -468,7 +472,7 @@
             <h2>Clientes</h2>
             <div class="panel-sub">Gestiona la información y ubicación de cada cliente</div>
           </div>
-          <button class="btn btn-primary" type="button" onclick="openClienteModal()">
+          <button class="btn btn-primary" type="button" id="btnNuevoCliente" onclick="openClienteModal()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>
             Nuevo Cliente
           </button>
@@ -569,7 +573,7 @@
             <h2>Instalaciones y Equipos</h2>
             <div class="panel-sub">Inventario de routers, antenas y switches en campo</div>
           </div>
-          <button class="btn btn-primary" type="button" onclick="openEquipoModal()">
+          <button class="btn btn-primary" type="button" id="btnNuevoEquipo" onclick="openEquipoModal()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>
             Nuevo Equipo
           </button>
@@ -606,6 +610,34 @@
           </table>
           <div class="empty-state" id="logsEmpty" style="display:none;">
             <p>Todavía no hay actividad registrada.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== VISTA USUARIOS ===== -->
+    <section class="view" id="view-usuarios">
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Usuarios y Permisos</h2>
+            <div class="panel-sub">Crea usuarios adicionales y define exactamente a qué pueden acceder</div>
+          </div>
+          <button class="btn btn-primary" type="button" onclick="openUsuarioModal()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>
+            Nuevo Usuario
+          </button>
+        </div>
+        <div class="coord-display" style="margin-bottom:18px; color:var(--accent-cyan);">
+          Tu cuenta (MCE COMUNICACIONES) es la administradora principal y siempre tiene acceso total. Los usuarios que crees aquí solo verán y podrán hacer lo que les habilites.
+        </div>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead><tr><th>Nombre</th><th>Usuario</th><th>Permisos</th><th></th></tr></thead>
+            <tbody id="tablaUsuarios"></tbody>
+          </table>
+          <div class="empty-state" id="usuariosEmpty" style="display:none;">
+            <p>No has creado usuarios adicionales todavía.</p>
           </div>
         </div>
       </div>
@@ -685,6 +717,73 @@
       <div class="modal-actions">
         <button type="button" class="btn btn-outline" onclick="closeModal('modalCliente')">Cancelar</button>
         <button type="submit" class="btn btn-primary">Guardar Cliente</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ================= MODAL USUARIO ================= -->
+<div class="modal-overlay" id="modalUsuario">
+  <div class="modal" style="max-width:560px;">
+    <div class="modal-title" id="usuarioModalTitle">Nuevo Usuario</div>
+    <div class="modal-sub">Crea el acceso y define qué puede ver, crear, editar o eliminar</div>
+    <form id="formUsuario">
+      <input type="hidden" id="usuarioId">
+      <div class="form-grid">
+        <div class="form-field full">
+          <label>Nombre completo</label>
+          <input type="text" id="uNombre" required placeholder="Ej: Carlos Ramírez">
+        </div>
+        <div class="form-field">
+          <label>Usuario (para iniciar sesión)</label>
+          <input type="text" id="uUsuario" required placeholder="Ej: carlos.tecnico">
+        </div>
+        <div class="form-field">
+          <label>Contraseña</label>
+          <input type="text" id="uPassword" required placeholder="Contraseña de acceso">
+        </div>
+        <div class="form-field full">
+          <label>Preset de rol (aplica una plantilla, luego puedes ajustar abajo)</label>
+          <select id="uPreset" onchange="aplicarPresetUsuario(this.value)">
+            <option value="">— Elegir plantilla —</option>
+            <option value="tecnico">Técnico de campo (crear clientes e instalaciones, sin editar)</option>
+            <option value="cobrador">Cobrador (ver clientes y gestionar pagos)</option>
+            <option value="total">Acceso total (como Administrador)</option>
+            <option value="custom">Personalizado (marca manualmente)</option>
+          </select>
+        </div>
+
+        <div class="form-field full">
+          <label style="font-size:12.5px; color:var(--text-primary); margin-bottom:2px;">Clientes</label>
+          <div style="display:flex; gap:16px; flex-wrap:wrap; font-size:12.5px; color:var(--text-muted);">
+            <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" id="pClienteVer"> Ver</label>
+            <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" id="pClienteCrear"> Crear</label>
+            <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" id="pClienteEditar"> Editar</label>
+            <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" id="pClienteEliminar"> Eliminar</label>
+          </div>
+        </div>
+        <div class="form-field full">
+          <label style="font-size:12.5px; color:var(--text-primary); margin-bottom:2px;">Instalaciones</label>
+          <div style="display:flex; gap:16px; flex-wrap:wrap; font-size:12.5px; color:var(--text-muted);">
+            <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" id="pInstVer"> Ver</label>
+            <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" id="pInstCrear"> Crear</label>
+            <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" id="pInstEditar"> Editar</label>
+            <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" id="pInstEliminar"> Eliminar</label>
+          </div>
+        </div>
+        <div class="form-field full">
+          <label style="font-size:12.5px; color:var(--text-primary); margin-bottom:2px;">Otros módulos</label>
+          <div style="display:flex; gap:16px; flex-wrap:wrap; font-size:12.5px; color:var(--text-muted);">
+            <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" id="pPagos"> Pagos</label>
+            <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" id="pPlanes"> Planes</label>
+            <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" id="pMapa"> Mapa Clientes</label>
+            <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" id="pLogs"> Logs</label>
+          </div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" onclick="closeModal('modalUsuario')">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Guardar Usuario</button>
       </div>
     </form>
   </div>
@@ -857,39 +956,294 @@ document.getElementById('logoLogin').src = LOGO_B64;
 document.getElementById('logoSidebar').src = LOGO_B64;
 document.getElementById('reciboLogo').src = LOGO_B64;
 
-/* ===================== CREDENCIALES ===================== */
+/* ===================== CREDENCIALES / PERMISOS ===================== */
 const APP_USER = 'MCE COMUNICACIONES';
 const APP_PASS = 'YOKO2025..';
+const DB_KEY_USUARIOS = 'mce_usuarios';
+const DB_KEY_CURRENT_USER = 'mce_current_user';
+
+const PERMISOS_TOTAL = {
+  clientes:{ver:true, crear:true, editar:true, eliminar:true},
+  instalaciones:{ver:true, crear:true, editar:true, eliminar:true},
+  pagos:true, planes:true, mapa:true, logs:true
+};
+const PRESETS_USUARIO = {
+  tecnico: {
+    clientes:{ver:true, crear:true, editar:false, eliminar:false},
+    instalaciones:{ver:true, crear:true, editar:false, eliminar:false},
+    pagos:false, planes:false, mapa:false, logs:false
+  },
+  cobrador: {
+    clientes:{ver:true, crear:false, editar:false, eliminar:false},
+    instalaciones:{ver:false, crear:false, editar:false, eliminar:false},
+    pagos:true, planes:false, mapa:true, logs:false
+  },
+  total: PERMISOS_TOTAL
+};
+
+function getUsuarios(){ try{ return JSON.parse(localStorage.getItem(DB_KEY_USUARIOS) || '[]'); }catch(e){ return []; } }
+function setUsuarios(list){ localStorage.setItem(DB_KEY_USUARIOS, JSON.stringify(list)); }
+
+function getCurrentUser(){
+  try{
+    const raw = localStorage.getItem(DB_KEY_CURRENT_USER);
+    if(raw) return JSON.parse(raw);
+  }catch(e){}
+  // Sesiones creadas antes de existir este sistema de permisos: se tratan como admin
+  return { id:'admin_root', nombre:'Administrador', usuario:APP_USER, permisos:PERMISOS_TOTAL };
+}
 
 function checkSession(){
   return localStorage.getItem('mce_session') === 'true';
 }
 function mostrarApp(){
   document.getElementById('loginScreen').style.display = 'none';
+  aplicarPermisos();
 }
 if(checkSession()){ mostrarApp(); }
+
+function loginComo(user){
+  localStorage.setItem('mce_session','true');
+  localStorage.setItem(DB_KEY_CURRENT_USER, JSON.stringify(user));
+  document.getElementById('loginError').classList.remove('show');
+  mostrarApp();
+  showToast('Bienvenido, ' + (user.nombre || user.usuario));
+  logAccion('Inicio de sesión', 'Usuario: ' + user.usuario);
+}
 
 document.getElementById('formLogin').addEventListener('submit', function(e){
   e.preventDefault();
   const u = document.getElementById('loginUser').value.trim();
   const p = document.getElementById('loginPass').value;
   const err = document.getElementById('loginError');
+
   if(u === APP_USER && p === APP_PASS){
-    localStorage.setItem('mce_session','true');
-    err.classList.remove('show');
-    mostrarApp();
-    showToast('Bienvenido, sesión iniciada');
-    logAccion('Inicio de sesión', 'Usuario: ' + APP_USER);
-  } else {
-    err.classList.add('show');
+    loginComo({ id:'admin_root', nombre:'Administrador', usuario:APP_USER, permisos:PERMISOS_TOTAL });
+    return;
   }
+  const match = getUsuarios().find(x=>x.usuario===u && x.password===p);
+  if(match){
+    loginComo(match);
+    return;
+  }
+  err.classList.add('show');
 });
+
 function cerrarSesion(){
   if(!confirm('¿Cerrar sesión?')) return;
-  logAccion('Cierre de sesión', 'Usuario: ' + APP_USER);
+  const user = getCurrentUser();
+  logAccion('Cierre de sesión', 'Usuario: ' + user.usuario);
   localStorage.removeItem('mce_session');
+  localStorage.removeItem(DB_KEY_CURRENT_USER);
   location.reload();
 }
+
+/* ---------- Aplica visibilidad de menú y botones según el usuario logueado ---------- */
+function esSuperAdmin(){ return getCurrentUser().usuario === APP_USER; }
+
+function toggleNav(view, allowed){
+  const link = document.querySelector('.navlink[data-view="'+view+'"]');
+  if(link) link.style.display = allowed ? 'flex' : 'none';
+}
+
+function aplicarPermisos(){
+  const user = getCurrentUser();
+  const p = user.permisos || PERMISOS_TOTAL;
+  const admin = esSuperAdmin();
+
+  toggleNav('clientes', !!p.clientes.ver);
+  toggleNav('planes', !!p.planes);
+  toggleNav('pagos', !!p.pagos);
+  toggleNav('mapa', !!p.mapa);
+  toggleNav('instalaciones', !!p.instalaciones.ver);
+  toggleNav('logs', !!p.logs);
+  toggleNav('usuarios', admin);
+
+  const btnNC = document.getElementById('btnNuevoCliente');
+  if(btnNC) btnNC.style.display = p.clientes.crear ? 'inline-flex' : 'none';
+  const btnNE = document.getElementById('btnNuevoEquipo');
+  if(btnNE) btnNE.style.display = p.instalaciones.crear ? 'inline-flex' : 'none';
+
+  const panelPagos = document.getElementById('panelPagosInicio');
+  if(panelPagos) panelPagos.style.display = p.pagos ? 'block' : 'none';
+
+  document.getElementById('userChipName').textContent = user.nombre || user.usuario;
+  document.getElementById('userChipRole').textContent = admin ? 'Administrador' : 'Usuario';
+  document.getElementById('userChipAvatar').textContent = (user.nombre || user.usuario).trim().charAt(0).toUpperCase();
+
+  // Si la vista activa ya no está permitida, regresa a Inicio
+  const vistaActiva = document.querySelector('.view.active');
+  if(vistaActiva){
+    const id = vistaActiva.id.replace('view-','');
+    const link = document.querySelector('.navlink[data-view="'+id+'"]');
+    if(link && link.style.display === 'none'){ irAVista('inicio'); }
+  }
+
+  renderClientesTable();
+  renderEquiposTable();
+}
+
+/* ===================== USUARIOS ===================== */
+function aplicarPresetUsuario(preset){
+  const base = PRESETS_USUARIO[preset];
+  if(!base){ return; } // "custom" no toca los checkboxes
+  document.getElementById('pClienteVer').checked = base.clientes.ver;
+  document.getElementById('pClienteCrear').checked = base.clientes.crear;
+  document.getElementById('pClienteEditar').checked = base.clientes.editar;
+  document.getElementById('pClienteEliminar').checked = base.clientes.eliminar;
+  document.getElementById('pInstVer').checked = base.instalaciones.ver;
+  document.getElementById('pInstCrear').checked = base.instalaciones.crear;
+  document.getElementById('pInstEditar').checked = base.instalaciones.editar;
+  document.getElementById('pInstEliminar').checked = base.instalaciones.eliminar;
+  document.getElementById('pPagos').checked = !!base.pagos;
+  document.getElementById('pPlanes').checked = !!base.planes;
+  document.getElementById('pMapa').checked = !!base.mapa;
+  document.getElementById('pLogs').checked = !!base.logs;
+}
+
+function leerPermisosFormUsuario(){
+  return {
+    clientes:{
+      ver: document.getElementById('pClienteVer').checked,
+      crear: document.getElementById('pClienteCrear').checked,
+      editar: document.getElementById('pClienteEditar').checked,
+      eliminar: document.getElementById('pClienteEliminar').checked,
+    },
+    instalaciones:{
+      ver: document.getElementById('pInstVer').checked,
+      crear: document.getElementById('pInstCrear').checked,
+      editar: document.getElementById('pInstEditar').checked,
+      eliminar: document.getElementById('pInstEliminar').checked,
+    },
+    pagos: document.getElementById('pPagos').checked,
+    planes: document.getElementById('pPlanes').checked,
+    mapa: document.getElementById('pMapa').checked,
+    logs: document.getElementById('pLogs').checked,
+  };
+}
+
+function resumenPermisos(permisos){
+  const partes = [];
+  if(permisos.clientes.ver){
+    let acciones = [];
+    if(permisos.clientes.crear) acciones.push('crear');
+    if(permisos.clientes.editar) acciones.push('editar');
+    if(permisos.clientes.eliminar) acciones.push('eliminar');
+    partes.push('Clientes' + (acciones.length ? ' ('+acciones.join(', ')+')' : ' (solo ver)'));
+  }
+  if(permisos.instalaciones.ver){
+    let acciones = [];
+    if(permisos.instalaciones.crear) acciones.push('crear');
+    if(permisos.instalaciones.editar) acciones.push('editar');
+    if(permisos.instalaciones.eliminar) acciones.push('eliminar');
+    partes.push('Instalaciones' + (acciones.length ? ' ('+acciones.join(', ')+')' : ' (solo ver)'));
+  }
+  if(permisos.pagos) partes.push('Pagos');
+  if(permisos.planes) partes.push('Planes');
+  if(permisos.mapa) partes.push('Mapa');
+  if(permisos.logs) partes.push('Logs');
+  return partes.length ? partes.join(' · ') : 'Sin permisos asignados';
+}
+
+function renderUsuariosTable(){
+  const usuarios = getUsuarios();
+  const tbody = document.getElementById('tablaUsuarios');
+  const empty = document.getElementById('usuariosEmpty');
+  if(usuarios.length===0){ tbody.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display='none';
+  tbody.innerHTML = usuarios.map(u=>`
+    <tr>
+      <td class="cell-strong">${u.nombre}</td>
+      <td class="mono cell-muted">${u.usuario}</td>
+      <td class="cell-muted" style="max-width:320px;">${resumenPermisos(u.permisos)}</td>
+      <td>
+        <div class="row-actions">
+          <button class="icon-btn" type="button" onclick="editUsuario('${u.id}')" title="Editar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+          </button>
+          <button class="icon-btn danger" type="button" onclick="deleteUsuario('${u.id}')" title="Eliminar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0-1 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 6"/></svg>
+          </button>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function openUsuarioModal(id){
+  document.getElementById('formUsuario').reset();
+  document.getElementById('usuarioId').value = '';
+  document.getElementById('usuarioModalTitle').textContent = 'Nuevo Usuario';
+  aplicarPresetUsuario('');
+  ['pClienteVer','pClienteCrear','pClienteEditar','pClienteEliminar','pInstVer','pInstCrear','pInstEditar','pInstEliminar','pPagos','pPlanes','pMapa','pLogs'].forEach(id=>{
+    document.getElementById(id).checked = false;
+  });
+  if(id){
+    const u = getUsuarios().find(x=>x.id===id);
+    if(u){
+      document.getElementById('usuarioModalTitle').textContent = 'Editar Usuario';
+      document.getElementById('usuarioId').value = u.id;
+      document.getElementById('uNombre').value = u.nombre;
+      document.getElementById('uUsuario').value = u.usuario;
+      document.getElementById('uPassword').value = u.password;
+      const perm = u.permisos;
+      document.getElementById('pClienteVer').checked = perm.clientes.ver;
+      document.getElementById('pClienteCrear').checked = perm.clientes.crear;
+      document.getElementById('pClienteEditar').checked = perm.clientes.editar;
+      document.getElementById('pClienteEliminar').checked = perm.clientes.eliminar;
+      document.getElementById('pInstVer').checked = perm.instalaciones.ver;
+      document.getElementById('pInstCrear').checked = perm.instalaciones.crear;
+      document.getElementById('pInstEditar').checked = perm.instalaciones.editar;
+      document.getElementById('pInstEliminar').checked = perm.instalaciones.eliminar;
+      document.getElementById('pPagos').checked = !!perm.pagos;
+      document.getElementById('pPlanes').checked = !!perm.planes;
+      document.getElementById('pMapa').checked = !!perm.mapa;
+      document.getElementById('pLogs').checked = !!perm.logs;
+    }
+  }
+  document.getElementById('modalUsuario').classList.add('active');
+}
+function editUsuario(id){ openUsuarioModal(id); }
+
+function deleteUsuario(id){
+  const u = getUsuarios().find(x=>x.id===id);
+  if(!confirm('¿Eliminar el usuario "'+(u?u.usuario:id)+'"? Ya no podrá iniciar sesión.')) return;
+  setUsuarios(getUsuarios().filter(x=>x.id!==id));
+  renderUsuariosTable();
+  showToast('Usuario eliminado');
+  logAccion('Usuario eliminado', u ? u.usuario : id);
+}
+
+document.getElementById('formUsuario').addEventListener('submit', function(e){
+  e.preventDefault();
+  const id = document.getElementById('usuarioId').value || 'usr_'+Date.now();
+  const usuarioLogin = document.getElementById('uUsuario').value.trim();
+
+  if(usuarioLogin.toUpperCase() === APP_USER.toUpperCase()){
+    showToast('Ese nombre de usuario está reservado para la cuenta administradora'); return;
+  }
+  const duplicado = getUsuarios().find(x=>x.usuario.toLowerCase()===usuarioLogin.toLowerCase() && x.id!==id);
+  if(duplicado){ showToast('Ya existe un usuario con ese nombre de acceso'); return; }
+
+  const usuario = {
+    id,
+    nombre: document.getElementById('uNombre').value.trim(),
+    usuario: usuarioLogin,
+    password: document.getElementById('uPassword').value,
+    permisos: leerPermisosFormUsuario()
+  };
+
+  const usuarios = getUsuarios();
+  const idx = usuarios.findIndex(x=>x.id===id);
+  const esNuevo = idx < 0;
+  if(idx>=0) usuarios[idx] = usuario; else usuarios.push(usuario);
+  setUsuarios(usuarios);
+
+  renderUsuariosTable();
+  closeModal('modalUsuario');
+  showToast('Usuario guardado correctamente');
+  logAccion(esNuevo ? 'Usuario creado' : 'Usuario editado', usuario.usuario + ' — ' + resumenPermisos(usuario.permisos));
+});
 
 /* ===================== ALMACENAMIENTO ===================== */
 const DB_KEY_CLIENTES = 'mce_clientes';
@@ -1072,9 +1426,11 @@ const titles = {
   pagos:['Pagos','Registra pagos, genera recibos y controla la cartera'],
   mapa:['Mapa de Clientes','Visualiza y reubica a tus clientes geográficamente'],
   instalaciones:['Instalaciones','Inventario de equipos de red en campo'],
-  logs:['Logs','Historial de actividad del sistema']
+  logs:['Logs','Historial de actividad del sistema'],
+  usuarios:['Usuarios y Permisos','Crea usuarios adicionales y define su acceso']
 };
 function irAVista(v){
+  if(v==='usuarios' && !esSuperAdmin()){ showToast('Solo la cuenta administradora puede gestionar usuarios'); return; }
   document.querySelectorAll('.navlink').forEach(l=>l.classList.remove('active'));
   const link = document.querySelector('.navlink[data-view="'+v+'"]');
   if(link) link.classList.add('active');
@@ -1089,6 +1445,7 @@ function irAVista(v){
   if(v==='pagos'){ renderPagosTable(document.getElementById('buscarPago').value); }
   if(v==='instalaciones'){ renderEquiposTable(); }
   if(v==='logs'){ renderLogsTable(); }
+  if(v==='usuarios'){ renderUsuariosTable(); }
 }
 document.querySelectorAll('.navlink').forEach(link=>{
   link.addEventListener('click', ()=> irAVista(link.dataset.view));
@@ -1166,6 +1523,7 @@ function renderClientesTable(){
   const clientes = getClientes();
   const tbody = document.getElementById('tablaClientes');
   const empty = document.getElementById('clientesEmpty');
+  const perm = (getCurrentUser().permisos || PERMISOS_TOTAL).clientes;
   if(clientes.length===0){ tbody.innerHTML=''; empty.style.display='block'; return; }
   empty.style.display='none';
   tbody.innerHTML = clientes.map(c=>`
@@ -1182,12 +1540,12 @@ function renderClientesTable(){
       <td>${badgeForEstado(c.estado)}</td>
       <td>
         <div class="row-actions">
-          <button class="icon-btn" type="button" onclick="editCliente('${c.id}')" title="Editar">
+          ${perm.editar ? `<button class="icon-btn" type="button" onclick="editCliente('${c.id}')" title="Editar">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-          </button>
-          <button class="icon-btn danger" type="button" onclick="deleteCliente('${c.id}')" title="Eliminar">
+          </button>` : ''}
+          ${perm.eliminar ? `<button class="icon-btn danger" type="button" onclick="deleteCliente('${c.id}')" title="Eliminar">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0-1 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 6"/></svg>
-          </button>
+          </button>` : ''}
         </div>
       </td>
     </tr>
@@ -1195,6 +1553,8 @@ function renderClientesTable(){
 }
 
 function openClienteModal(id){
+  const perm = (getCurrentUser().permisos || PERMISOS_TOTAL).clientes;
+  if(!id && !perm.crear){ showToast('No tienes permiso para crear clientes'); return; }
   document.getElementById('formCliente').reset();
   document.getElementById('clienteId').value = '';
   selectedCoords = null;
@@ -1224,9 +1584,15 @@ function openClienteModal(id){
     }
   }, 80);
 }
-function editCliente(id){ openClienteModal(id); }
+function editCliente(id){
+  const perm = (getCurrentUser().permisos || PERMISOS_TOTAL).clientes;
+  if(!perm.editar){ showToast('No tienes permiso para editar clientes'); return; }
+  openClienteModal(id);
+}
 
 function deleteCliente(id){
+  const perm = (getCurrentUser().permisos || PERMISOS_TOTAL).clientes;
+  if(!perm.eliminar){ showToast('No tienes permiso para eliminar clientes'); return; }
   if(!confirm('¿Eliminar este cliente? Esta acción no se puede deshacer.')) return;
   const c = getClientes().find(x=>x.id===id);
   setClientes(getClientes().filter(x=>x.id!==id));
@@ -1641,6 +2007,7 @@ function renderEquiposTable(){
   const clientes = getClientes();
   const tbody = document.getElementById('tablaEquipos');
   const empty = document.getElementById('equiposEmpty');
+  const perm = (getCurrentUser().permisos || PERMISOS_TOTAL).instalaciones;
   if(equipos.length===0){ tbody.innerHTML=''; empty.style.display='block'; return; }
   empty.style.display='none';
   tbody.innerHTML = equipos.map(e=>{
@@ -1655,12 +2022,12 @@ function renderEquiposTable(){
       <td class="cell-muted">${cli ? cli.nombre : '—'}</td>
       <td>
         <div class="row-actions">
-          <button class="icon-btn" type="button" onclick="editEquipo('${e.id}')" title="Editar">
+          ${perm.editar ? `<button class="icon-btn" type="button" onclick="editEquipo('${e.id}')" title="Editar">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-          </button>
-          <button class="icon-btn danger" type="button" onclick="deleteEquipo('${e.id}')" title="Eliminar">
+          </button>` : ''}
+          ${perm.eliminar ? `<button class="icon-btn danger" type="button" onclick="deleteEquipo('${e.id}')" title="Eliminar">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0-1 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 6"/></svg>
-          </button>
+          </button>` : ''}
         </div>
       </td>
     </tr>`;
@@ -1668,6 +2035,8 @@ function renderEquiposTable(){
 }
 
 function openEquipoModal(id){
+  const perm = (getCurrentUser().permisos || PERMISOS_TOTAL).instalaciones;
+  if(!id && !perm.crear){ showToast('No tienes permiso para crear equipos'); return; }
   document.getElementById('formEquipo').reset();
   document.getElementById('equipoId').value = '';
   document.getElementById('equipoModalTitle').textContent = 'Nuevo Equipo';
@@ -1687,9 +2056,15 @@ function openEquipoModal(id){
   }
   document.getElementById('modalEquipo').classList.add('active');
 }
-function editEquipo(id){ openEquipoModal(id); }
+function editEquipo(id){
+  const perm = (getCurrentUser().permisos || PERMISOS_TOTAL).instalaciones;
+  if(!perm.editar){ showToast('No tienes permiso para editar equipos'); return; }
+  openEquipoModal(id);
+}
 
 function deleteEquipo(id){
+  const perm = (getCurrentUser().permisos || PERMISOS_TOTAL).instalaciones;
+  if(!perm.eliminar){ showToast('No tienes permiso para eliminar equipos'); return; }
   if(!confirm('¿Eliminar este equipo del inventario?')) return;
   const e = getEquipos().find(x=>x.id===id);
   setEquipos(getEquipos().filter(x=>x.id!==id));
@@ -1736,6 +2111,8 @@ renderPlanesTable();
 renderPagosTable('');
 renderEquiposTable();
 renderLogsTable();
+renderUsuariosTable();
+if(checkSession()){ aplicarPermisos(); }
 </script>
 </body>
 </html>
