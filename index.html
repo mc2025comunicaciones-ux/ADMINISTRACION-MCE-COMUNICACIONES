@@ -1456,9 +1456,9 @@ async function syncClienteToSheet(cliente){
     data:{
       nombre: cliente.nombre,
       cedula: cliente.cedula,
-      plan: cliente.planNombre,
-      estado: cliente.estado === 'activo' ? 'ACTIVO' : (cliente.estado === 'suspendido' ? 'SUSPENDIDO' : 'BLOQUEADO'),
-      vencimiento: 'Día ' + (cliente.corte || '—') + ' de cada mes',
+      plan: (cliente.planVelocidad ? cliente.planVelocidad + ' Mbps' : cliente.planNombre),
+      estado: cliente.estado === 'activo' ? 'Activo' : (cliente.estado === 'suspendido' ? 'Suspendido' : 'Bloqueado'),
+      vencimiento: formatearFechaCorte(asegurarFechaVencimiento(cliente)),
       valor: fmtMoney(cliente.precio),
       vereda: cliente.vereda || '',
       puntoConexion: buscarPuntoConexion(cliente.id)
@@ -1787,7 +1787,7 @@ function renderPlanSelectInCliente(selectedPlanId){
   const planes = getPlanes();
   const sel = document.getElementById('cPlan');
   sel.innerHTML = '<option value="">— Selecciona un plan —</option>' +
-    planes.map(p=>`<option value="${p.id}" data-precio="${p.precio}" data-nombre="${p.nombre} — ${p.velocidad} Mbps">${p.nombre} — ${p.velocidad} Mbps (${fmtMoney(p.precio)})</option>`).join('');
+    planes.map(p=>`<option value="${p.id}" data-precio="${p.precio}" data-velocidad="${p.velocidad}" data-nombre="${p.nombre} — ${p.velocidad} Mbps">${p.nombre} — ${p.velocidad} Mbps (${fmtMoney(p.precio)})</option>`).join('');
   document.getElementById('sinPlanesAviso').style.display = planes.length===0 ? 'block' : 'none';
   if(selectedPlanId) sel.value = selectedPlanId;
 }
@@ -1851,6 +1851,66 @@ function periodoActual(){
 function periodoTexto(periodo){
   const [y,m] = periodo.split('-');
   return MESES[Number(m)-1] + ' ' + y;
+}
+
+/* ===================== FECHA DE CORTE (vencimiento) ===================== */
+const MESES_ABREV = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+
+function pad2(n){ return String(n).padStart(2,'0'); }
+
+/* Convierte un objeto Date a texto ISO local (YYYY-MM-DD) sin desfases de zona horaria */
+function dateToISO(date){
+  return date.getFullYear() + '-' + pad2(date.getMonth()+1) + '-' + pad2(date.getDate());
+}
+
+/* Da la fecha de un día del mes, ajustando si ese mes no tiene tantos días (ej: 31 en febrero) */
+function fechaParaDiaDelMes(anio, mesIndex0, dia){
+  const ultimoDia = new Date(anio, mesIndex0+1, 0).getDate();
+  return new Date(anio, mesIndex0, Math.min(dia, ultimoDia));
+}
+
+/* Calcula la próxima fecha de corte a partir de hoy: si el día de corte de este mes ya pasó, usa el del mes siguiente */
+function calcularProximoVencimiento(corteDia, base){
+  const hoy = base ? new Date(base) : new Date();
+  hoy.setHours(0,0,0,0);
+  let candidato = fechaParaDiaDelMes(hoy.getFullYear(), hoy.getMonth(), corteDia);
+  if(candidato < hoy){
+    let mesSig = hoy.getMonth()+1, anioSig = hoy.getFullYear();
+    if(mesSig > 11){ mesSig = 0; anioSig++; }
+    candidato = fechaParaDiaDelMes(anioSig, mesSig, corteDia);
+  }
+  return candidato;
+}
+
+/* Avanza la fecha de corte actual un mes hacia adelante (se usa al registrar un pago) */
+function avanzarVencimientoUnMes(fechaActualISO, corteDia){
+  const actual = fechaActualISO ? new Date(fechaActualISO+'T00:00:00') : new Date();
+  let mes = actual.getMonth()+1, anio = actual.getFullYear();
+  if(mes > 11){ mes = 0; anio++; }
+  return fechaParaDiaDelMes(anio, mes, corteDia);
+}
+
+/* Formatea una fecha como "07-ago-2026", igual al formato ya usado en la Hoja de Google */
+function formatearFechaCorte(fecha){
+  const d = (fecha instanceof Date) ? fecha : new Date(fecha+'T00:00:00');
+  return pad2(d.getDate()) + '-' + MESES_ABREV[d.getMonth()] + '-' + d.getFullYear();
+}
+
+/* Para clientes creados antes de este cambio: si no tienen fechaVencimiento, la calcula y la guarda */
+function asegurarFechaVencimiento(cliente){
+  if(cliente.fechaVencimiento) return cliente.fechaVencimiento;
+  const fecha = dateToISO(calcularProximoVencimiento(cliente.corte || 1));
+  cliente.fechaVencimiento = fecha;
+  const lista = getClientes();
+  const idx = lista.findIndex(c=>c.id===cliente.id);
+  if(idx>=0){ lista[idx].fechaVencimiento = fecha; setClientes(lista); }
+  return fecha;
+}
+
+/* Texto para mostrar en tablas del panel */
+function mostrarFechaCorte(cliente){
+  const fecha = asegurarFechaVencimiento(cliente);
+  return formatearFechaCorte(fecha);
 }
 
 /* ===================== NAVEGACIÓN ===================== */
@@ -1949,7 +2009,7 @@ function renderStats(){
     <tr>
       <td class="cell-strong">${c.nombre}</td>
       <td class="cell-muted">${c.vereda||'—'}</td>
-      <td class="mono cell-muted">Día ${c.corte||'—'}</td>
+      <td class="mono cell-muted">${mostrarFechaCorte(c)}</td>
       <td>${pagado ? '<span class="badge badge-green">● Pagado</span>' : '<span class="badge badge-orange">● Pendiente</span>'}</td>
       <td>${pagado ? '' : '<button class="btn btn-green btn-small" type="button" onclick="abrirModalPago(\''+c.id+'\')">Registrar Pago</button>'}</td>
     </tr>`;
@@ -1974,7 +2034,7 @@ function renderClientesTable(){
         <div class="cell-muted">WA: ${c.whatsapp||'—'}</div>
       </td>
       <td><span class="badge badge-blue">${c.planNombre}</span><div class="cell-muted mono" style="margin-top:4px;">${fmtMoney(c.precio)}/mes</div></td>
-      <td class="mono cell-muted">Día ${c.corte||'—'}</td>
+      <td class="mono cell-muted">${mostrarFechaCorte(c)}</td>
       <td>${badgeForEstado(c.estado)}</td>
       <td>
         <div class="row-actions">
@@ -2053,6 +2113,7 @@ document.getElementById('formCliente').addEventListener('submit', function(e){
   const planOpt = planSel.selectedOptions[0];
   const planId = planSel.value || null;
   const planNombre = (planOpt && planOpt.dataset.nombre) ? planOpt.dataset.nombre : (planOpt ? planOpt.textContent : 'Sin plan');
+  const planVelocidad = (planOpt && planOpt.dataset.velocidad) ? Number(planOpt.dataset.velocidad) : 0;
 
   const nombre = document.getElementById('cNombre').value.trim();
   const cedula = document.getElementById('cCedula').value.trim();
@@ -2062,13 +2123,25 @@ document.getElementById('formCliente').addEventListener('submit', function(e){
   if(!nombre || !cedula || !telefono || !vereda || !corte){ showToast('Completa nombre, cédula, vereda, teléfono y día de corte'); return; }
   if(!planId){ showToast('Selecciona un plan contratado (créalo primero en "Planes" si no existe)'); return; }
 
+  // Si el cliente ya existía y su día de corte no cambió, conserva la fecha de vencimiento
+  // que ya llevaba (para no perder el avance generado por pagos anteriores).
+  const clienteAnterior = getClientes().find(c=>c.id===id);
+  let fechaVencimiento;
+  if(clienteAnterior && clienteAnterior.corte === corte && clienteAnterior.fechaVencimiento){
+    fechaVencimiento = clienteAnterior.fechaVencimiento;
+  } else {
+    fechaVencimiento = dateToISO(calcularProximoVencimiento(corte));
+  }
+
   const cliente = {
     id, nombre, cedula, vereda, telefono,
     whatsapp: document.getElementById('cWhatsapp').value.trim(),
     estado: document.getElementById('cEstado').value,
     corte,
+    fechaVencimiento,
     planId,
     planNombre,
+    planVelocidad,
     precio: Number(document.getElementById('cPrecio').value || 0),
     lat: selectedCoords ? selectedCoords.lat : null,
     lng: selectedCoords ? selectedCoords.lng : null,
@@ -2172,7 +2245,7 @@ function renderPagosTable(filtro){
       <td class="cell-muted">${c.vereda||'—'}</td>
       <td><span class="badge badge-blue">${c.planNombre}</span></td>
       <td class="mono cell-muted">${fmtMoney(c.precio)}</td>
-      <td class="mono cell-muted">Día ${c.corte||'—'}</td>
+      <td class="mono cell-muted">${mostrarFechaCorte(c)}</td>
       <td>${pagado ? '<span class="badge badge-green">● Pagado</span>' : '<span class="badge badge-orange">● Pendiente</span>'}</td>
       <td>
         ${pagado
@@ -2214,14 +2287,27 @@ document.getElementById('formPago').addEventListener('submit', function(e){
   pagos.push(pago);
   setPagos(pagos);
 
+  // Al pagar, la fecha de corte avanza automáticamente un mes hacia adelante
+  const fechaAnterior = asegurarFechaVencimiento(c);
+  const nuevaFecha = dateToISO(avanzarVencimientoUnMes(fechaAnterior, c.corte));
+  const clientesLista = getClientes();
+  const idxCliente = clientesLista.findIndex(x=>x.id===c.id);
+  if(idxCliente>=0){
+    clientesLista[idxCliente].fechaVencimiento = nuevaFecha;
+    setClientes(clientesLista);
+    c.fechaVencimiento = nuevaFecha; // refleja el cambio en la variable local usada más abajo
+  }
+
   closeModal('modalRegistrarPago');
+  renderClientesTable();
   renderPagosTable(document.getElementById('buscarPago').value);
   renderStats();
   mostrarRecibo(c, pago);
-  showToast('Pago registrado — recibo generado');
-  logAccion('Pago registrado', c.nombre + ' — ' + fmtMoney(pago.valor) + ' (Recibo N° ' + pago.numero + ')');
+  showToast('Pago registrado. Próximo corte: ' + formatearFechaCorte(nuevaFecha));
+  logAccion('Pago registrado', c.nombre + ' — ' + fmtMoney(pago.valor) + ' (Recibo N° ' + pago.numero + '). Próximo corte: ' + formatearFechaCorte(nuevaFecha));
 
   // Genera y descarga el PDF automáticamente al confirmar el pago
+  // (esto también sincroniza la nueva fecha de corte en la Hoja de Google)
   generarPDFRecibo(c, pago);
 });
 
