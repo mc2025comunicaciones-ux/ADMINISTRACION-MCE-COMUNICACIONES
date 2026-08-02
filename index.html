@@ -1540,15 +1540,21 @@ function doPost(e) {
         sheet.getRange(fila, 1).setValue(d.nombre || '');
         sheet.getRange(fila, 3).setValue(d.plan || '');
         sheet.getRange(fila, 4).setValue(d.estado || '');
-        sheet.getRange(fila, 5).setValue(d.vencimiento || '');
-        sheet.getRange(fila, 6).setValue(d.valor || '');
+        sheet.getRange(fila, 5).setNumberFormat('@').setValue(d.vencimiento || '');
+        sheet.getRange(fila, 6).setNumberFormat('@').setValue(d.valor || '');
         sheet.getRange(fila, 7).setValue(d.vereda || '');
         sheet.getRange(fila, 9).setValue(d.puntoConexion || '');
       } else {
+        var filaNueva = sheet.getLastRow() + 1;
         sheet.appendRow([
           d.nombre || '', cedula, d.plan || '', d.estado || '',
           d.vencimiento || '', d.valor || '', d.vereda || '', '', d.puntoConexion || ''
         ]);
+        // Fuerza texto plano para que Sheets no reinterprete la fecha o el valor
+        // con el formato de moneda/fecha por defecto de la hoja (mantiene el
+        // mismo aspecto "$60.000" / "07-ago-2026" que las filas manuales).
+        sheet.getRange(filaNueva, 5).setNumberFormat('@').setValue(d.vencimiento || '');
+        sheet.getRange(filaNueva, 6).setNumberFormat('@').setValue(d.valor || '');
       }
       return respuesta({ ok: true, accion: fila > 0 ? 'actualizado' : 'creado' });
     }
