@@ -775,6 +775,13 @@
           <input type="number" id="cCorte" min="1" max="31" required placeholder="Ej: 15">
         </div>
         <div class="form-field">
+          <label>Próxima Fecha de Corte</label>
+          <input type="date" id="cFechaCorte">
+        </div>
+        <div class="form-field full" style="margin-top:-6px;">
+          <span class="cell-muted" style="font-size:11.5px;">Se calcula sola según el "día del mes", pero si algo quedó mal puedes corregirla aquí manualmente — desde esa fecha el sistema sigue avanzando un mes automáticamente con cada pago.</span>
+        </div>
+        <div class="form-field">
           <label>Plan contratado</label>
           <select id="cPlan">
             <option value="">— Selecciona un plan —</option>
@@ -1458,8 +1465,8 @@ async function syncClienteToSheet(cliente){
       cedula: cliente.cedula,
       plan: (cliente.planVelocidad ? cliente.planVelocidad + ' Mbps' : cliente.planNombre),
       estado: cliente.estado === 'activo' ? 'Activo' : (cliente.estado === 'suspendido' ? 'Suspendido' : 'Bloqueado'),
-      vencimiento: formatearFechaCorte(asegurarFechaVencimiento(cliente)),
-      valor: fmtMoney(cliente.precio),
+      vencimientoISO: asegurarFechaVencimiento(cliente),
+      valorNum: Number(cliente.precio || 0),
       vereda: cliente.vereda || '',
       puntoConexion: buscarPuntoConexion(cliente.id)
     }
@@ -1536,25 +1543,28 @@ function doPost(e) {
       var cedula = String(d.cedula || '').trim();
       var fila = buscarFilaPorCedula(sheet, cedula);
 
+      // La fecha llega como texto ISO "YYYY-MM-DD" y el valor como número puro;
+      // aquí se convierten a tipos reales (fecha y número) con el mismo formato
+      // visual que ya usan las filas cargadas manualmente en la Hoja.
+      var fechaObj = d.vencimientoISO ? new Date(d.vencimientoISO + 'T00:00:00') : null;
+      var valorNum = Number(d.valorNum || 0);
+
       if (fila > 0) {
         sheet.getRange(fila, 1).setValue(d.nombre || '');
         sheet.getRange(fila, 3).setValue(d.plan || '');
         sheet.getRange(fila, 4).setValue(d.estado || '');
-        sheet.getRange(fila, 5).setNumberFormat('@').setValue(d.vencimiento || '');
-        sheet.getRange(fila, 6).setNumberFormat('@').setValue(d.valor || '');
+        if (fechaObj) { sheet.getRange(fila, 5).setNumberFormat('d/MM/yyyy').setValue(fechaObj); }
+        sheet.getRange(fila, 6).setNumberFormat('"$"#,##0').setValue(valorNum);
         sheet.getRange(fila, 7).setValue(d.vereda || '');
         sheet.getRange(fila, 9).setValue(d.puntoConexion || '');
       } else {
         var filaNueva = sheet.getLastRow() + 1;
         sheet.appendRow([
           d.nombre || '', cedula, d.plan || '', d.estado || '',
-          d.vencimiento || '', d.valor || '', d.vereda || '', '', d.puntoConexion || ''
+          '', '', d.vereda || '', '', d.puntoConexion || ''
         ]);
-        // Fuerza texto plano para que Sheets no reinterprete la fecha o el valor
-        // con el formato de moneda/fecha por defecto de la hoja (mantiene el
-        // mismo aspecto "$60.000" / "07-ago-2026" que las filas manuales).
-        sheet.getRange(filaNueva, 5).setNumberFormat('@').setValue(d.vencimiento || '');
-        sheet.getRange(filaNueva, 6).setNumberFormat('@').setValue(d.valor || '');
+        if (fechaObj) { sheet.getRange(filaNueva, 5).setNumberFormat('d/MM/yyyy').setValue(fechaObj); }
+        sheet.getRange(filaNueva, 6).setNumberFormat('"$"#,##0').setValue(valorNum);
       }
       return respuesta({ ok: true, accion: fila > 0 ? 'actualizado' : 'creado' });
     }
@@ -2081,6 +2091,7 @@ function openClienteModal(id){
         document.getElementById('cWhatsapp').value = c.whatsapp;
         document.getElementById('cEstado').value = c.estado;
         document.getElementById('cCorte').value = c.corte || '';
+        document.getElementById('cFechaCorte').value = asegurarFechaVencimiento(c);
         document.getElementById('cPrecio').value = c.precio;
         renderPlanSelectInCliente(c.planId);
         if(c.lat){ setCoords(c.lat, c.lng); }
@@ -2112,6 +2123,21 @@ document.getElementById('cPlan').addEventListener('change', function(){
   if(opt && opt.dataset.precio){ document.getElementById('cPrecio').value = opt.dataset.precio; }
 });
 
+// Si el admin cambia el "día del mes", recalcula sola la próxima fecha de corte.
+// Si el admin edita la fecha directamente sin tocar el día, se respeta lo que escribió.
+document.getElementById('cCorte').addEventListener('input', function(){
+  const dia = Number(this.value);
+  if(dia >= 1 && dia <= 31){
+    document.getElementById('cFechaCorte').value = dateToISO(calcularProximoVencimiento(dia));
+  }
+});
+document.getElementById('cCorte').addEventListener('change', function(){
+  const dia = Number(this.value);
+  if(dia >= 1 && dia <= 31){
+    document.getElementById('cFechaCorte').value = dateToISO(calcularProximoVencimiento(dia));
+  }
+});
+
 document.getElementById('formCliente').addEventListener('submit', function(e){
   e.preventDefault();
   const id = document.getElementById('clienteId').value || 'cli_'+Date.now();
@@ -2129,15 +2155,10 @@ document.getElementById('formCliente').addEventListener('submit', function(e){
   if(!nombre || !cedula || !telefono || !vereda || !corte){ showToast('Completa nombre, cédula, vereda, teléfono y día de corte'); return; }
   if(!planId){ showToast('Selecciona un plan contratado (créalo primero en "Planes" si no existe)'); return; }
 
-  // Si el cliente ya existía y su día de corte no cambió, conserva la fecha de vencimiento
-  // que ya llevaba (para no perder el avance generado por pagos anteriores).
-  const clienteAnterior = getClientes().find(c=>c.id===id);
-  let fechaVencimiento;
-  if(clienteAnterior && clienteAnterior.corte === corte && clienteAnterior.fechaVencimiento){
-    fechaVencimiento = clienteAnterior.fechaVencimiento;
-  } else {
-    fechaVencimiento = dateToISO(calcularProximoVencimiento(corte));
-  }
+  // La fecha de corte se toma del campo editable (se auto-completa al escribir el
+  // día del mes, pero si el admin la corrigió a mano, se respeta ese valor).
+  const fechaCorteInput = document.getElementById('cFechaCorte').value;
+  const fechaVencimiento = fechaCorteInput || dateToISO(calcularProximoVencimiento(corte));
 
   const cliente = {
     id, nombre, cedula, vereda, telefono,
