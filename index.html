@@ -791,6 +791,10 @@
           <label>Precio mensual (COP)</label>
           <input type="number" id="cPrecio" placeholder="Se autocompleta según el plan">
         </div>
+        <div class="form-field">
+          <label>Punto de Conexión</label>
+          <input type="text" id="cPuntoConexion" placeholder="Ej: AP-Sector1, Torre Pedregal...">
+        </div>
         <div class="form-field full" id="sinPlanesAviso" style="display:none;">
           <div class="coord-display" style="color:#f5a623; background:rgba(245,166,35,0.1); border-color:rgba(245,166,35,0.3);">
             Aún no has creado planes de internet. Ve a "Planes" en el menú para crear el primero.
@@ -1468,7 +1472,7 @@ async function syncClienteToSheet(cliente){
       vencimientoISO: asegurarFechaVencimiento(cliente),
       valorNum: Number(cliente.precio || 0),
       vereda: cliente.vereda || '',
-      puntoConexion: buscarPuntoConexion(cliente.id)
+      puntoConexion: cliente.puntoConexion || buscarPuntoConexion(cliente.id)
     }
   };
   try{
@@ -2093,6 +2097,7 @@ function openClienteModal(id){
         document.getElementById('cCorte').value = c.corte || '';
         document.getElementById('cFechaCorte').value = asegurarFechaVencimiento(c);
         document.getElementById('cPrecio').value = c.precio;
+        document.getElementById('cPuntoConexion').value = c.puntoConexion || '';
         renderPlanSelectInCliente(c.planId);
         if(c.lat){ setCoords(c.lat, c.lng); }
       }
@@ -2170,6 +2175,7 @@ document.getElementById('formCliente').addEventListener('submit', function(e){
     planNombre,
     planVelocidad,
     precio: Number(document.getElementById('cPrecio').value || 0),
+    puntoConexion: document.getElementById('cPuntoConexion').value.trim(),
     lat: selectedCoords ? selectedCoords.lat : null,
     lng: selectedCoords ? selectedCoords.lng : null,
   };
