@@ -9,6 +9,8 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <style>
   :root{
     --bg-deep:#060a1f; --bg-panel:#0a0f2b; --bg-sidebar-1:#080c24; --bg-sidebar-2:#050814;
@@ -980,7 +982,12 @@
         </div>
         <div class="form-field">
           <label>Número de serial</label>
-          <input type="text" id="eSerial" required placeholder="Ej: SN-88213AX">
+          <div style="display:flex; gap:8px;">
+            <input type="text" id="eSerial" required placeholder="Ej: SN-88213AX" style="flex:1;">
+            <button type="button" class="icon-btn" title="Escanear con cámara" onclick="abrirModalScan('eSerial','Número de Serial')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2Z"/><circle cx="12" cy="13" r="4"/></svg>
+            </button>
+          </div>
         </div>
         <div class="form-field">
           <label>IP asignada</label>
@@ -988,7 +995,12 @@
         </div>
         <div class="form-field">
           <label>Dirección MAC</label>
-          <input type="text" id="eMac" required placeholder="Ej: A4:5E:60:D1:2B:3C">
+          <div style="display:flex; gap:8px;">
+            <input type="text" id="eMac" required placeholder="Ej: A4:5E:60:D1:2B:3C" style="flex:1;">
+            <button type="button" class="icon-btn" title="Escanear con cámara" onclick="abrirModalScan('eMac','Dirección MAC')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2Z"/><circle cx="12" cy="13" r="4"/></svg>
+            </button>
+          </div>
         </div>
         <div class="form-field">
           <label>Cliente asociado (opcional)</label>
@@ -1002,6 +1014,38 @@
         <button type="submit" class="btn btn-primary">Guardar Equipo</button>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- ================= MODAL ESCANEAR CON CÁMARA ================= -->
+<div class="modal-overlay" id="modalScan">
+  <div class="modal" style="max-width:460px;">
+    <div class="modal-title">Escanear <span id="scanFieldLabel"></span></div>
+    <div class="modal-sub">Apunta la cámara al código o al texto de la etiqueta del equipo. Siempre puedes escribirlo a mano si prefieres.</div>
+
+    <div style="display:flex; gap:8px; margin-bottom:14px;">
+      <button class="btn btn-outline btn-small" type="button" id="btnModoCodigo" onclick="cambiarModoScan('codigo')">📷 Código de barras / QR</button>
+      <button class="btn btn-outline btn-small" type="button" id="btnModoTexto" onclick="cambiarModoScan('texto')">🔤 Leer texto (foto)</button>
+    </div>
+
+    <div id="scanReaderContainer" style="width:100%; border-radius:10px; overflow:hidden; background:#000; min-height:230px;"></div>
+    <video id="scanVideoOCR" style="width:100%; border-radius:10px; display:none; background:#000;" autoplay playsinline muted></video>
+    <canvas id="scanCanvasOCR" style="display:none;"></canvas>
+
+    <div id="scanOCRControls" style="display:none; margin-top:12px;">
+      <button class="btn btn-primary btn-small" type="button" onclick="capturarYLeerOCR()">📸 Capturar y leer texto</button>
+      <div id="scanOCRLoading" style="display:none; margin-top:10px; color:var(--text-muted); font-size:12.5px;">Leyendo texto, un momento...</div>
+    </div>
+
+    <div id="scanResultBox" style="display:none; margin-top:14px;">
+      <label style="font-size:11.5px; color:var(--text-muted); font-weight:600; letter-spacing:0.4px;">Valor detectado (revísalo antes de usarlo):</label>
+      <input type="text" id="scanResultInput" class="mono" style="width:100%; margin-top:6px; background:rgba(255,255,255,0.04); border:1px solid var(--border); border-radius:9px; padding:10px 12px; color:var(--text-primary);">
+      <button class="btn btn-green btn-small" type="button" style="margin-top:8px;" onclick="usarValorEscaneado()">Usar este valor</button>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-outline" type="button" onclick="cerrarModalScan()">Cerrar y escribir manualmente</button>
+    </div>
   </div>
 </div>
 
@@ -2196,7 +2240,10 @@ function showToast(msg){
   t.classList.add('show');
   setTimeout(()=>t.classList.remove('show'), 2600);
 }
-function closeModal(id){ document.getElementById(id).classList.remove('active'); }
+function closeModal(id){
+  document.getElementById(id).classList.remove('active');
+  if(id === 'modalScan' || id === 'modalEquipo'){ detenerCodigoScan(); detenerOCRCamara(); }
+}
 function badgeForEstado(estado){
   if(estado==='activo') return '<span class="badge badge-green">● Activo</span>';
   if(estado==='suspendido') return '<span class="badge badge-orange">● Suspendido</span>';
@@ -2918,6 +2965,125 @@ document.getElementById('formEquipo').addEventListener('submit', function(e){
 
   if(getSyncUrl() && getSyncAuto()){ syncEquipoToSheet(equipo); }
 });
+
+/* ===================== ESCANEO CON CÁMARA (Serial / MAC) ===================== */
+let scanTargetFieldId = null;
+let scanModoActual = null;
+let html5QrCodeInstance = null;
+let ocrStreamActivo = null;
+
+function abrirModalScan(targetFieldId, label){
+  scanTargetFieldId = targetFieldId;
+  document.getElementById('scanFieldLabel').textContent = label;
+  document.getElementById('scanResultBox').style.display = 'none';
+  document.getElementById('modalScan').classList.add('active');
+  cambiarModoScan('codigo');
+}
+
+function cerrarModalScan(){
+  detenerCodigoScan();
+  detenerOCRCamara();
+  document.getElementById('modalScan').classList.remove('active');
+}
+
+function cambiarModoScan(modo){
+  scanModoActual = modo;
+  document.getElementById('btnModoCodigo').className = modo==='codigo' ? 'btn btn-primary btn-small' : 'btn btn-outline btn-small';
+  document.getElementById('btnModoTexto').className = modo==='texto' ? 'btn btn-primary btn-small' : 'btn btn-outline btn-small';
+  document.getElementById('scanResultBox').style.display = 'none';
+
+  if(modo === 'codigo'){
+    detenerOCRCamara();
+    document.getElementById('scanVideoOCR').style.display = 'none';
+    document.getElementById('scanOCRControls').style.display = 'none';
+    document.getElementById('scanReaderContainer').style.display = 'block';
+    iniciarCodigoScan();
+  } else {
+    detenerCodigoScan();
+    document.getElementById('scanReaderContainer').style.display = 'none';
+    document.getElementById('scanVideoOCR').style.display = 'block';
+    document.getElementById('scanOCRControls').style.display = 'block';
+    iniciarOCRCamara();
+  }
+}
+
+/* ---- Modo código de barras / QR (html5-qrcode) ---- */
+function iniciarCodigoScan(){
+  try{
+    html5QrCodeInstance = new Html5Qrcode('scanReaderContainer');
+    html5QrCodeInstance.start(
+      { facingMode: 'environment' },
+      { fps: 10, qrbox: { width: 220, height: 140 } },
+      (decodedText) => {
+        mostrarValorDetectado(decodedText);
+        detenerCodigoScan();
+      },
+      () => { /* no detectado en este frame, se ignora y se sigue intentando */ }
+    ).catch(()=>{
+      showToast('No se pudo abrir la cámara. Revisa los permisos del navegador.');
+    });
+  }catch(err){
+    showToast('Este dispositivo no soporta el escaneo de códigos.');
+  }
+}
+function detenerCodigoScan(){
+  if(html5QrCodeInstance){
+    html5QrCodeInstance.stop().then(()=>{ html5QrCodeInstance.clear(); }).catch(()=>{});
+    html5QrCodeInstance = null;
+  }
+}
+
+/* ---- Modo texto (foto + OCR con Tesseract.js) ---- */
+async function iniciarOCRCamara(){
+  try{
+    ocrStreamActivo = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    const video = document.getElementById('scanVideoOCR');
+    video.srcObject = ocrStreamActivo;
+  }catch(err){
+    showToast('No se pudo abrir la cámara. Revisa los permisos del navegador.');
+  }
+}
+function detenerOCRCamara(){
+  if(ocrStreamActivo){
+    ocrStreamActivo.getTracks().forEach(t=>t.stop());
+    ocrStreamActivo = null;
+  }
+}
+async function capturarYLeerOCR(){
+  const video = document.getElementById('scanVideoOCR');
+  const canvas = document.getElementById('scanCanvasOCR');
+  if(!video.videoWidth){ showToast('Espera a que la cámara cargue e inténtalo de nuevo'); return; }
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+
+  document.getElementById('scanOCRLoading').style.display = 'block';
+  document.getElementById('scanResultBox').style.display = 'none';
+  try{
+    const { data } = await Tesseract.recognize(canvas, 'eng');
+    // Se limpia el texto: se quitan saltos de línea y espacios sobrantes,
+    // y se conservan solo caracteres típicos de un serial/MAC.
+    let texto = (data.text || '').replace(/\s+/g, '').trim();
+    document.getElementById('scanOCRLoading').style.display = 'none';
+    if(!texto){ showToast('No se detectó texto legible. Acerca más la cámara o inténtalo de nuevo.'); return; }
+    mostrarValorDetectado(texto);
+  }catch(err){
+    document.getElementById('scanOCRLoading').style.display = 'none';
+    showToast('No se pudo leer el texto de la imagen.');
+  }
+}
+
+function mostrarValorDetectado(valor){
+  document.getElementById('scanResultInput').value = valor;
+  document.getElementById('scanResultBox').style.display = 'block';
+}
+function usarValorEscaneado(){
+  const valor = document.getElementById('scanResultInput').value.trim();
+  if(!valor){ showToast('El valor está vacío'); return; }
+  if(scanTargetFieldId){ document.getElementById(scanTargetFieldId).value = valor; }
+  showToast('Valor insertado en el campo');
+  cerrarModalScan();
+}
 
 /* ===================== INIT ===================== */
 renderStats();
