@@ -681,6 +681,23 @@
       <div class="panel">
         <div class="panel-head">
           <div>
+            <h2>Verificar un Cliente en la Hoja</h2>
+            <div class="panel-sub">Consulta exactamente qué está viendo el script para una cédula — útil si el recibo no le aparece al cliente</div>
+          </div>
+        </div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
+          <div class="form-field" style="max-width:260px;">
+            <label>Cédula a verificar</label>
+            <input type="text" id="verificarCedula" placeholder="Ej: 1075658900">
+          </div>
+          <button class="btn btn-outline" type="button" onclick="verificarClienteEnHoja()">Buscar en la Hoja</button>
+        </div>
+        <div id="verificarResultado" style="margin-top:16px;"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div>
             <h2>Cómo activarlo (una sola vez)</h2>
             <div class="panel-sub">5 minutos, no necesitas saber programación</div>
           </div>
@@ -1390,6 +1407,46 @@ function buscarPuntoConexion(clienteId){
   return eq ? eq.nombre : '';
 }
 
+async function verificarClienteEnHoja(){
+  const url = getSyncUrl();
+  const cedula = document.getElementById('verificarCedula').value.trim();
+  const resultDiv = document.getElementById('verificarResultado');
+  if(!url){ showToast('Primero configura y guarda la URL del Web App'); return; }
+  if(!cedula){ showToast('Escribe una cédula para buscar'); return; }
+
+  resultDiv.innerHTML = '<div class="coord-display">Consultando la Hoja...</div>';
+  try{
+    const res = await fetch(url, {
+      method:'POST',
+      headers:{ 'Content-Type':'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action:'buscarCliente', cedula })
+    });
+    const data = await res.json();
+
+    if(!data || !data.ok){
+      resultDiv.innerHTML = `<div class="coord-display" style="color:var(--danger); background:rgba(239,68,68,0.1); border-color:rgba(239,68,68,0.3);">Error consultando: ${data && data.error ? data.error : 'sin respuesta'}</div>`;
+      return;
+    }
+    if(!data.encontrado){
+      resultDiv.innerHTML = `<div class="coord-display" style="color:var(--warning); background:rgba(245,166,35,0.1); border-color:rgba(245,166,35,0.3); align-items:flex-start; line-height:1.6;">
+        No hay ninguna fila con esa cédula en la Hoja "${data.nombreHoja}" (${data.totalFilas} filas en total). Usa "Sincronizar Todos los Clientes Ahora" para crearla, o revisa que la cédula esté bien escrita en el cliente.
+      </div>`;
+      return;
+    }
+    const tieneRecibo = data.recibo && String(data.recibo).trim().startsWith('http');
+    resultDiv.innerHTML = `
+      <div class="coord-display" style="color:var(--success); background:rgba(34,197,94,0.1); border-color:rgba(34,197,94,0.3); align-items:flex-start; line-height:1.7; flex-direction:column;">
+        <div><b>✔ Encontrado en la fila ${data.fila}</b> de la hoja "${data.nombreHoja}"</div>
+        <div>Nombre: ${data.nombre || '—'}</div>
+        <div>Plan: ${data.plan || '—'} · Estado: ${data.estado || '—'}</div>
+        <div>Vereda: ${data.vereda || '—'} · Corte: ${data.vencimiento || '—'}</div>
+        <div>Recibo (columna H): ${tieneRecibo ? '<span style="color:var(--accent-cyan)">✔ Tiene link — la página pública debería mostrar el botón de descarga</span>' : '<span style="color:var(--danger)">✘ Vacío — por eso no aparece el botón en la página pública</span>'}</div>
+      </div>`;
+  }catch(err){
+    resultDiv.innerHTML = `<div class="coord-display" style="color:var(--danger); background:rgba(239,68,68,0.1); border-color:rgba(239,68,68,0.3);">No se pudo conectar: ${err.message}</div>`;
+  }
+}
+
 /* Envía (crea o actualiza) los datos de un cliente en la Hoja de Google, sin tocar su recibo actual */
 async function syncClienteToSheet(cliente){
   const url = getSyncUrl();
@@ -1500,6 +1557,22 @@ function doPost(e) {
       return respuesta({ ok: true, mensaje: 'pong' });
     }
 
+    if (payload.action === 'buscarCliente') {
+      var cedulaBuscar = String(payload.cedula || '').trim();
+      var filaBuscar = buscarFilaPorCedula(sheet, cedulaBuscar);
+      if (filaBuscar > 0) {
+        var valores = sheet.getRange(filaBuscar, 1, 1, 9).getValues()[0];
+        return respuesta({
+          ok: true, encontrado: true, fila: filaBuscar,
+          nombre: valores[0], cedula: valores[1], plan: valores[2], estado: valores[3],
+          vencimiento: valores[4], valor: valores[5], vereda: valores[6],
+          recibo: valores[7], puntoConexion: valores[8],
+          totalFilas: sheet.getLastRow(), nombreHoja: sheet.getName()
+        });
+      }
+      return respuesta({ ok: true, encontrado: false, totalFilas: sheet.getLastRow(), nombreHoja: sheet.getName() });
+    }
+
     if (payload.action === 'uploadRecibo') {
       var cedula2 = String(payload.cedula || '').trim();
       var carpeta = obtenerCarpetaRecibos();
@@ -1533,11 +1606,16 @@ function doGet(e) {
   return respuesta({ ok: true, mensaje: 'MCE Sync API activa' });
 }
 
+function limpiarCedula(c) {
+  return String(c || '').replace(/[.,\s]/g, '').trim();
+}
+
 function buscarFilaPorCedula(sheet, cedula) {
   var datos = sheet.getDataRange().getValues();
+  var cedulaLimpia = limpiarCedula(cedula);
   for (var i = 1; i < datos.length; i++) {
-    var val = String(datos[i][1] || '').trim();
-    if (val === cedula) return i + 1;
+    var val = limpiarCedula(datos[i][1]);
+    if (val === cedulaLimpia && cedulaLimpia !== '') return i + 1;
   }
   return -1;
 }
