@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MCE Comunicaciones — Panel de Administración</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+  :root{
+    --bg-deep:#060a1f;
+    --bg-panel:#0a0f2b;
+    --bg-sidebar-1:#080c24;
+    --bg-sidebar-2:#050814;
+    --bg-card: rgba(255,255,255,0.035);
+    --bg-card-hover: rgba(255,255,255,0.06);
+    --border: rgba(255,255,255,0.09);
+    --border-soft: rgba(120,150,255,0.16);
+    --accent: #2f6fed;
+    --accent-light:#5b9dff;
+    --accent-cyan:#38bdf8;
+    --text-primary:#eef2ff;
+    --text-muted:#8b96bd;
+    --text-faint:#5c6690;
+    --success:#22c55e;
+    --warning:#f5a623;
+    --danger:#ef4444;
+    --radius:14px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%;}
+  body{
+    font-family:'Inter',sans-serif;
+    background:var(--bg-deep);
+    color:var(--text-primary);
+    display:flex;
+    min-height:100vh;
+    background-image:
+      linear-gradient(rgba(90,130,255,0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(90,130,255,0.05) 1px, transparent 1px);
+    background-size: 42px 42px;
+  }
+  .mono{ font-family:'JetBrains Mono', monospace; }
+  h1,h2,h3,.display{ font-family:'Oswald', sans-serif; letter-spacing:0.5px; text-transform:uppercase; }
+
+  /* ---------- SIDEBAR ---------- */
+  #sidebar{
+    width:250px; min-width:250px;
+    background:linear-gradient(180deg, var(--bg-sidebar-1), var(--bg-sidebar-2));
+    border-right:1px solid var(--border);
+    display:flex; flex-direction:column;
+    position:sticky; top:0; height:100vh; z-index:50;
+  }
+  .brand{ display:flex; align-items:center; gap:12px; padding:22px 20px; border-bottom:1px solid var(--border); }
+  .brand-badge{
+    width:40px; height:40px; border-radius:10px;
+    background:linear-gradient(135deg,var(--accent),var(--accent-cyan));
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Oswald',sans-serif; font-weight:700; font-size:15px; color:#fff;
+    box-shadow:0 0 20px rgba(56,189,248,0.35); flex-shrink:0;
+  }
+  .brand-text{ line-height:1.2; }
+  .brand-text .name{ font-family:'Oswald',sans-serif; font-size:15px; font-weight:600; letter-spacing:0.5px; }
+  .brand-text .sub{ font-size:10.5px; color:var(--text-muted); letter-spacing:1.5px; text-transform:uppercase; }
+
+  nav.navlinks{ padding:16px 12px; display:flex; flex-direction:column; gap:4px; flex:1; }
+  .navlink{
+    display:flex; align-items:center; gap:12px;
+    padding:11px 14px; border-radius:10px;
+    color:var(--text-muted); text-decoration:none; cursor:pointer;
+    font-size:13.5px; font-weight:500; border:1px solid transparent;
+    transition:all .15s ease; user-select:none; background:none; width:100%; text-align:left; font-family:'Inter',sans-serif;
+  }
+  .navlink svg{ width:18px; height:18px; flex-shrink:0; opacity:0.85; }
+  .navlink:hover{ background:rgba(255,255,255,0.04); color:var(--text-primary); }
+  .navlink.active{
+    background:linear-gradient(90deg, rgba(47,111,237,0.22), rgba(47,111,237,0.03));
+    color:#fff; border-color:var(--border-soft);
+  }
+  .navlink.active svg{ opacity:1; color:var(--accent-cyan); }
+
+  .sidebar-foot{ padding:16px 20px; border-top:1px solid var(--border); font-size:11px; color:var(--text-faint); display:flex; flex-direction:column; gap:4px; }
+  .status-dot{ width:7px; height:7px; border-radius:50%; background:var(--success); display:inline-block; margin-right:6px; box-shadow:0 0 6px var(--success); }
+
+  /* ---------- MAIN ---------- */
+  #main{ flex:1; min-width:0; display:flex; flex-direction:column; }
+  #topbar{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:18px 32px; border-bottom:1px solid var(--border);
+    background:rgba(6,10,31,0.7); backdrop-filter:blur(6px);
+    position:sticky; top:0; z-index:30;
+  }
+  #topbar .page-title{ font-size:19px; font-weight:600; letter-spacing:0.5px;}
+  #topbar .page-sub{ color:var(--text-muted); font-size:12.5px; margin-top:2px; text-transform:none; letter-spacing:0; font-family:'Inter',sans-serif;}
+  .user-chip{ display:flex; align-items:center; gap:10px; background:var(--bg-card); border:1px solid var(--border); padding:7px 14px 7px 8px; border-radius:999px; }
+  .user-avatar{ width:26px; height:26px; border-radius:50%; background:linear-gradient(135deg,var(--accent),var(--accent-cyan)); display:flex;align-items:center;justify-content:center; font-size:11px; font-weight:700;}
+  .user-chip .uname{ font-size:12.5px; font-weight:600;}
+  .user-chip .urole{ font-size:10px; color:var(--text-muted);}
+
+  #content{ padding:32px; flex:1; }
+  .view{ display:none; animation:fadein .25s ease; }
+  .view.active{ display:block; }
+  @keyframes fadein{ from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);} }
+
+  /* ---------- HERO ---------- */
+  .hero-banner{
+    position:relative; overflow:hidden; border:1px solid var(--border-soft); border-radius:18px;
+    padding:34px 36px;
+    background:
+      radial-gradient(circle at 85% 20%, rgba(56,189,248,0.16), transparent 55%),
+      linear-gradient(135deg, #0b1440, #060a1f 65%);
+    margin-bottom:28px;
+  }
+  .hero-eyebrow{
+    display:inline-flex; align-items:center; gap:8px; font-size:11px; letter-spacing:1.5px; text-transform:uppercase;
+    color:var(--accent-cyan); background:rgba(56,189,248,0.09); border:1px solid rgba(56,189,248,0.3);
+    padding:6px 14px; border-radius:999px; margin-bottom:16px; font-weight:600;
+  }
+  .hero-banner h1{ font-size:36px; line-height:1.05; margin-bottom:8px; background:linear-gradient(90deg,#fff,#a9c4ff); -webkit-background-clip:text; background-clip:text; color:transparent;}
+  .hero-banner p{ color:var(--text-muted); font-size:14px; max-width:520px; font-family:'Inter',sans-serif; text-transform:none; letter-spacing:0;}
+
+  /* ---------- STAT CARDS ---------- */
+  .grid-cards{ display:grid; grid-template-columns:repeat(auto-fit, minmax(230px,1fr)); gap:18px; margin-bottom:28px; }
+  .stat-card{ background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); padding:22px; position:relative; overflow:hidden; transition:.2s; }
+  .stat-card:hover{ background:var(--bg-card-hover); border-color:var(--border-soft); transform:translateY(-2px);}
+  .stat-icon{ width:42px; height:42px; border-radius:10px; display:flex; align-items:center; justify-content:center; margin-bottom:14px; }
+  .stat-icon svg{ width:20px; height:20px; }
+  .stat-label{ font-size:11.5px; color:var(--text-muted); letter-spacing:1px; text-transform:uppercase; font-weight:600; margin-bottom:6px;}
+  .stat-value{ font-family:'Oswald',sans-serif; font-size:26px; font-weight:600; }
+  .stat-note{ font-size:11.5px; color:var(--text-faint); margin-top:5px; font-family:'Inter',sans-serif; text-transform:none; letter-spacing:0;}
+  .icon-blue{ background:rgba(47,111,237,0.16); color:var(--accent-light); }
+  .icon-green{ background:rgba(34,197,94,0.14); color:var(--success); }
+  .icon-orange{ background:rgba(245,166,35,0.14); color:var(--warning); }
+  .icon-red{ background:rgba(239,68,68,0.14); color:var(--danger); }
+  .icon-cyan{ background:rgba(56,189,248,0.14); color:var(--accent-cyan); }
+
+  /* ---------- PANELS ---------- */
+  .panel{ background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); padding:24px; margin-bottom:24px; }
+  .panel-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; flex-wrap:wrap; gap:12px;}
+  .panel-head h2{ font-size:16px; font-weight:600; letter-spacing:0.5px;}
+  .panel-head .panel-sub{ font-size:12px; color:var(--text-muted); text-transform:none; font-family:'Inter',sans-serif; letter-spacing:0; margin-top:3px;}
+
+  .btn{ display:inline-flex; align-items:center; gap:8px; padding:10px 18px; border-radius:9px; border:none; cursor:pointer; font-size:13px; font-weight:600; font-family:'Inter',sans-serif; transition:.15s; }
+  .btn svg{ width:15px; height:15px; }
+  .btn-primary{ background:linear-gradient(90deg,var(--accent),#4d8bff); color:#fff; box-shadow:0 4px 14px rgba(47,111,237,0.35);}
+  .btn-primary:hover{ filter:brightness(1.1); transform:translateY(-1px);}
+  .btn-outline{ background:transparent; border:1px solid var(--border); color:var(--text-primary); }
+  .btn-outline:hover{ border-color:var(--accent-light); color:var(--accent-light); }
+  .btn-small{ padding:7px 12px; font-size:12px; }
+
+  /* ---------- TABLE ---------- */
+  table{ width:100%; border-collapse:collapse; }
+  thead th{ text-align:left; font-size:10.5px; letter-spacing:1px; text-transform:uppercase; color:var(--text-faint); font-weight:600; padding:0 14px 12px 14px; border-bottom:1px solid var(--border); }
+  tbody td{ padding:14px; font-size:13px; border-bottom:1px solid rgba(255,255,255,0.05); vertical-align:middle;}
+  tbody tr:hover td{ background:rgba(255,255,255,0.02); }
+  .cell-strong{ font-weight:600; }
+  .cell-muted{ color:var(--text-muted); font-size:12px; }
+  .badge{ display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:600; padding:4px 10px; border-radius:999px; }
+  .badge-green{ background:rgba(34,197,94,0.14); color:var(--success);}
+  .badge-orange{ background:rgba(245,166,35,0.14); color:var(--warning);}
+  .badge-red{ background:rgba(239,68,68,0.14); color:var(--danger);}
+  .badge-blue{ background:rgba(47,111,237,0.16); color:var(--accent-light);}
+  .row-actions{ display:flex; gap:8px; }
+  .icon-btn{ width:30px; height:30px; border-radius:8px; display:flex; align-items:center; justify-content:center; background:transparent; border:1px solid var(--border); color:var(--text-muted); cursor:pointer;}
+  .icon-btn:hover{ color:var(--accent-light); border-color:var(--accent-light); }
+  .icon-btn svg{ width:14px; height:14px;}
+  .icon-btn.danger:hover{ color:var(--danger); border-color:var(--danger); }
+  .empty-state{ text-align:center; padding:50px 20px; color:var(--text-faint); }
+  .empty-state svg{ width:44px; height:44px; margin-bottom:14px; opacity:.5; }
+  .empty-state p{ font-size:13px; }
+
+  /* ---------- MODAL / FORM ---------- */
+  .modal-overlay{
+    display:none; position:fixed; inset:0; background:rgba(2,4,15,0.72); backdrop-filter:blur(3px);
+    z-index:200; align-items:flex-start; justify-content:center; padding:40px 16px; overflow-y:auto;
+  }
+  .modal-overlay.active{ display:flex; }
+  .modal{
+    background:linear-gradient(180deg,#0d1338,#0a0f2b); border:1px solid var(--border-soft);
+    border-radius:16px; width:100%; max-width:640px; padding:26px 28px 28px;
+    box-shadow:0 20px 60px rgba(0,0,0,0.5);
+  }
+  .modal-title{ font-size:17px; font-weight:600; letter-spacing:0.5px; margin-bottom:4px;}
+  .modal-sub{ font-size:12px; color:var(--text-muted); text-transform:none; font-family:'Inter',sans-serif; letter-spacing:0; margin-bottom:20px;}
+  .form-grid{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .form-field{ display:flex; flex-direction:column; gap:6px; }
+  .form-field.full{ grid-column:1/-1; }
+  .form-field label{ font-size:11.5px; color:var(--text-muted); font-weight:600; letter-spacing:0.4px; }
+  .form-field input, .form-field select{
+    background:rgba(255,255,255,0.04); border:1px solid var(--border); border-radius:9px;
+    padding:10px 12px; color:var(--text-primary); font-size:13px; font-family:'Inter',sans-serif; outline:none;
+  }
+  .form-field input:focus, .form-field select:focus{ border-color:var(--accent-light); background:rgba(255,255,255,0.06);}
+  .form-field select option{ background:#0a0f2b; }
+  .coord-display{ display:flex; align-items:center; gap:8px; font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--accent-cyan); background:rgba(56,189,248,0.08); border:1px solid rgba(56,189,248,0.25); padding:9px 12px; border-radius:9px; }
+  .mini-map{ height:220px; border-radius:10px; overflow:hidden; border:1px solid var(--border); margin-top:6px;}
+  .map-actions{ display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; }
+  .modal-actions{ display:flex; justify-content:flex-end; gap:10px; margin-top:22px; padding-top:18px; border-top:1px solid var(--border);}
+
+  /* ---------- MAP VIEW ---------- */
+  #mapaClientesBox{ height:calc(100vh - 230px); min-height:460px; border-radius:var(--radius); overflow:hidden; border:1px solid var(--border);}
+  .leaflet-popup-content-wrapper{ background:#0d1338; color:#eef2ff; border-radius:10px; }
+  .leaflet-popup-tip{ background:#0d1338; }
+  .popup-title{ font-weight:700; font-size:13.5px; margin-bottom:4px; }
+  .popup-line{ font-size:12px; color:#a9b3d6; margin-bottom:2px;}
+  .popup-plan{ display:inline-block; margin-top:6px; font-size:11px; background:rgba(47,111,237,0.25); color:#a9c4ff; padding:3px 9px; border-radius:999px; }
+
+  ::-webkit-scrollbar{ width:9px; height:9px;}
+  ::-webkit-scrollbar-thumb{ background:rgba(255,255,255,0.12); border-radius:6px;}
+  ::-webkit-scrollbar-track{ background:transparent;}
+
+  .toast{
+    position:fixed; bottom:26px; right:26px; background:#0d1338; border:1px solid var(--border-soft);
+    padding:14px 20px; border-radius:10px; font-size:13px; box-shadow:0 10px 30px rgba(0,0,0,0.4);
+    display:flex; align-items:center; gap:10px; z-index:400; opacity:0; transform:translateY(10px);
+    transition:.25s; pointer-events:none;
+  }
+  .toast.show{ opacity:1; transform:translateY(0); }
+  .toast svg{ width:16px; height:16px; color:var(--success); flex-shrink:0; }
+
+  @media (max-width:900px){
+    #sidebar{ position:fixed; left:-260px; transition:.2s; }
+    #sidebar.open{ left:0; }
+    .form-grid{ grid-template-columns:1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ================= SIDEBAR ================= -->
+<aside id="sidebar">
+  <div class="brand">
+    <div class="brand-badge">MC</div>
+    <div class="brand-text">
+      <div class="name">MCE COMUNICACIONES</div>
+      <div class="sub">Panel Admin</div>
+    </div>
+  </div>
+  <nav class="navlinks">
+    <button type="button" class="navlink active" data-view="inicio">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9"/></svg>
+      Inicio
+    </button>
+    <button type="button" class="navlink" data-view="clientes">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.5 3-6 6.5-6s6.5 2.5 6.5 6"/><circle cx="17" cy="8" r="2.6"/><path d="M15.5 14.2c2.8.3 5 2.6 5 5.8"/></svg>
+      Clientes
+    </button>
+    <button type="button" class="navlink" data-view="mapa">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 20 3 17.5V4L9 6.5m0 13.5 6-2.5m-6 2.5V6.5m6 11 6 2.5V6.5L15 4m0 13.5V4M9 6.5 15 4"/></svg>
+      Mapa Clientes
+    </button>
+    <button type="button" class="navlink" data-view="instalaciones">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/><circle cx="7" cy="7" r=".6" fill="currentColor"/><circle cx="7" cy="17" r=".6" fill="currentColor"/></svg>
+      Instalaciones
+    </button>
+  </nav>
+  <div class="sidebar-foot">
+    <div><span class="status-dot"></span>Sistema operativo</div>
+    <div id="fechaHoy">—</div>
+  </div>
+</aside>
+
+<!-- ================= MAIN ================= -->
+<div id="main">
+  <div id="topbar">
+    <div>
+      <div class="page-title" id="pageTitle">Inicio</div>
+      <div class="page-sub" id="pageSub">Resumen operativo de tu red</div>
+    </div>
+    <div class="user-chip">
+      <div class="user-avatar">A</div>
+      <div>
+        <div class="uname">Admin</div>
+        <div class="urole">Administrador</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="content">
+
+    <!-- ===== VISTA INICIO ===== -->
+    <section class="view active" id="view-inicio">
+      <div class="hero-banner">
+        <div class="hero-eyebrow"><span class="status-dot"></span> Conexión rural de alta calidad</div>
+        <h1>Panel de Administración</h1>
+        <p>Controla clientes, cobertura e instalaciones de MCE Comunicaciones desde un solo lugar.</p>
+      </div>
+
+      <div class="grid-cards">
+        <div class="stat-card">
+          <div class="stat-icon icon-green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5.5c0-1.9-2.2-3-5-3s-5 1.4-5 3.3 2.2 2.8 5 3.2 5 1.3 5 3.2S14.8 15.5 12 15.5s-5-1.1-5-3"/></svg></div>
+          <div class="stat-label">Ingreso Mensual Proyectado</div>
+          <div class="stat-value mono" id="statBalance">$0</div>
+          <div class="stat-note" id="statBalanceNote">Suma de planes activos</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon icon-red"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg></div>
+          <div class="stat-label">Cartera Vencida</div>
+          <div class="stat-value mono" id="statVencida">$0</div>
+          <div class="stat-note" id="statVencidaNote">0 clientes en mora</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon icon-blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.5 3-6 6.5-6s6.5 2.5 6.5 6"/><circle cx="17" cy="8" r="2.6"/><path d="M15.5 14.2c2.8.3 5 2.6 5 5.8"/></svg></div>
+          <div class="stat-label">Total Clientes</div>
+          <div class="stat-value" id="statTotalClientes">0</div>
+          <div class="stat-note">Registrados en el sistema</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon icon-cyan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/></svg></div>
+          <div class="stat-label">Equipos Instalados</div>
+          <div class="stat-value" id="statEquipos">0</div>
+          <div class="stat-note">Routers, antenas y switches</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Estado de Clientes</h2>
+            <div class="panel-sub">Distribución actual de tu cartera</div>
+          </div>
+        </div>
+        <div class="grid-cards" style="margin-bottom:0;">
+          <div class="stat-card" style="padding:16px 20px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+              <span class="badge badge-green">● Activos</span>
+              <span class="stat-value mono" id="statActivos" style="font-size:20px;">0</span>
+            </div>
+          </div>
+          <div class="stat-card" style="padding:16px 20px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+              <span class="badge badge-orange">● Suspendidos</span>
+              <span class="stat-value mono" id="statSuspendidos" style="font-size:20px;">0</span>
+            </div>
+          </div>
+          <div class="stat-card" style="padding:16px 20px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+              <span class="badge badge-red">● Bloqueados</span>
+              <span class="stat-value mono" id="statBloqueados" style="font-size:20px;">0</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== VISTA CLIENTES ===== -->
+    <section class="view" id="view-clientes">
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Clientes</h2>
+            <div class="panel-sub">Gestiona la información y ubicación de cada cliente</div>
+          </div>
+          <button class="btn btn-primary" type="button" onclick="openClienteModal()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>
+            Nuevo Cliente
+          </button>
+        </div>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead>
+              <tr>
+                <th>Cliente</th><th>Cédula</th><th>Teléfono / WhatsApp</th><th>Plan</th><th>Ubicación</th><th>Estado</th><th></th>
+              </tr>
+            </thead>
+            <tbody id="tablaClientes"></tbody>
+          </table>
+          <div class="empty-state" id="clientesEmpty" style="display:none;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.5 3-6 6.5-6s6.5 2.5 6.5 6"/></svg>
+            <p>Aún no has registrado clientes. Crea el primero con "Nuevo Cliente".</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== VISTA MAPA ===== -->
+    <section class="view" id="view-mapa">
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Mapa de Clientes</h2>
+            <div class="panel-sub">Ubica y reubica clientes arrastrando su marcador en el mapa</div>
+          </div>
+        </div>
+        <div id="mapaClientesBox"></div>
+      </div>
+    </section>
+
+    <!-- ===== VISTA INSTALACIONES ===== -->
+    <section class="view" id="view-instalaciones">
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Instalaciones y Equipos</h2>
+            <div class="panel-sub">Inventario de routers, antenas y switches en campo</div>
+          </div>
+          <button class="btn btn-primary" type="button" onclick="openEquipoModal()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>
+            Nuevo Equipo
+          </button>
+        </div>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead>
+              <tr>
+                <th>Equipo</th><th>Tipo</th><th>Serial</th><th>IP Asignada</th><th>MAC</th><th>Cliente / Ubicación</th><th></th>
+              </tr>
+            </thead>
+            <tbody id="tablaEquipos"></tbody>
+          </table>
+          <div class="empty-state" id="equiposEmpty" style="display:none;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/></svg>
+            <p>No hay equipos registrados. Agrega el primero con "Nuevo Equipo".</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<!-- ================= MODAL CLIENTE ================= -->
+<div class="modal-overlay" id="modalCliente">
+  <div class="modal">
+    <div class="modal-title" id="clienteModalTitle">Nuevo Cliente</div>
+    <div class="modal-sub">Completa los datos del cliente y ubica su domicilio en el mapa</div>
+    <form id="formCliente">
+      <input type="hidden" id="clienteId">
+      <div class="form-grid">
+        <div class="form-field full">
+          <label>Nombre completo</label>
+          <input type="text" id="cNombre" required placeholder="Ej: Juan Pérez Rodríguez">
+        </div>
+        <div class="form-field">
+          <label>Cédula</label>
+          <input type="text" id="cCedula" required placeholder="Ej: 1075...">
+        </div>
+        <div class="form-field">
+          <label>Teléfono</label>
+          <input type="text" id="cTelefono" required placeholder="Ej: 3XX XXX XXXX">
+        </div>
+        <div class="form-field">
+          <label>WhatsApp</label>
+          <input type="text" id="cWhatsapp" placeholder="Ej: 3XX XXX XXXX">
+        </div>
+        <div class="form-field">
+          <label>Estado</label>
+          <select id="cEstado">
+            <option value="activo">Activo</option>
+            <option value="suspendido">Suspendido</option>
+            <option value="bloqueado">Bloqueado</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label>Plan contratado</label>
+          <select id="cPlan">
+            <option value="Básico 10 Mbps|45000">Básico — 10 Mbps ($45.000)</option>
+            <option value="Estándar 20 Mbps|65000">Estándar — 20 Mbps ($65.000)</option>
+            <option value="Premium 40 Mbps|90000">Premium — 40 Mbps ($90.000)</option>
+            <option value="Negocios 60 Mbps|130000">Negocios — 60 Mbps ($130.000)</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label>Precio mensual (COP)</label>
+          <input type="number" id="cPrecio" placeholder="Se autocompleta según el plan">
+        </div>
+        <div class="form-field full">
+          <label>Ubicación (GPS)</label>
+          <div class="coord-display" id="coordDisplay">Sin coordenadas — usa tu ubicación o marca en el mapa</div>
+          <div class="map-actions">
+            <button type="button" class="btn btn-outline btn-small" onclick="usarMiUbicacion()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+              Usar mi ubicación GPS
+            </button>
+            <span class="cell-muted" style="align-self:center;">o haz clic directamente en el mapa</span>
+          </div>
+          <div class="mini-map" id="miniMap"></div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" onclick="closeModal('modalCliente')">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Guardar Cliente</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ================= MODAL EQUIPO ================= -->
+<div class="modal-overlay" id="modalEquipo">
+  <div class="modal">
+    <div class="modal-title" id="equipoModalTitle">Nuevo Equipo</div>
+    <div class="modal-sub">Registra un router, antena o switch de tu inventario</div>
+    <form id="formEquipo">
+      <input type="hidden" id="equipoId">
+      <div class="form-grid">
+        <div class="form-field">
+          <label>Tipo de equipo</label>
+          <select id="eTipo">
+            <option value="Router">Router</option>
+            <option value="Antena">Antena</option>
+            <option value="Switch">Switch</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label>Nombre del equipo</label>
+          <input type="text" id="eNombre" required placeholder="Ej: Router-Sector1-AP03">
+        </div>
+        <div class="form-field">
+          <label>Número de serial</label>
+          <input type="text" id="eSerial" required placeholder="Ej: SN-88213AX">
+        </div>
+        <div class="form-field">
+          <label>IP asignada</label>
+          <input type="text" id="eIp" required placeholder="Ej: 192.168.10.24">
+        </div>
+        <div class="form-field">
+          <label>Dirección MAC</label>
+          <input type="text" id="eMac" required placeholder="Ej: A4:5E:60:D1:2B:3C">
+        </div>
+        <div class="form-field">
+          <label>Cliente asociado (opcional)</label>
+          <select id="eCliente">
+            <option value="">— Ninguno / Infraestructura general —</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" onclick="closeModal('modalEquipo')">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Guardar Equipo</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="toast" id="toast">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 6 9 17l-5-5"/></svg>
+  <span id="toastMsg">Guardado correctamente</span>
+</div>
+
+<script>
+/* ===================== ALMACENAMIENTO (localStorage — funciona al abrir el archivo directamente) ===================== */
+const DB_KEY_CLIENTES = 'mce_clientes';
+const DB_KEY_EQUIPOS = 'mce_equipos';
+
+function getClientes(){ try{ return JSON.parse(localStorage.getItem(DB_KEY_CLIENTES) || '[]'); }catch(e){ return []; } }
+function setClientes(list){ localStorage.setItem(DB_KEY_CLIENTES, JSON.stringify(list)); }
+function getEquipos(){ try{ return JSON.parse(localStorage.getItem(DB_KEY_EQUIPOS) || '[]'); }catch(e){ return []; } }
+function setEquipos(list){ localStorage.setItem(DB_KEY_EQUIPOS, JSON.stringify(list)); }
+
+/* ===================== ESTADO DE MAPAS ===================== */
+let miniMapInstance = null, miniMarker = null, selectedCoords = null;
+let bigMapInstance = null;
+const DEFAULT_LAT = 2.0866, DEFAULT_LNG = -75.9028; // referencia Saladoblanco / Oporapa, Huila
+
+/* ===================== NAVEGACIÓN ENTRE SECCIONES ===================== */
+const titles = {
+  inicio:['Inicio','Resumen operativo de tu red'],
+  clientes:['Clientes','Gestiona la información y ubicación de cada cliente'],
+  mapa:['Mapa de Clientes','Visualiza y reubica a tus clientes geográficamente'],
+  instalaciones:['Instalaciones','Inventario de equipos de red en campo']
+};
+document.querySelectorAll('.navlink').forEach(link=>{
+  link.addEventListener('click', ()=>{
+    document.querySelectorAll('.navlink').forEach(l=>l.classList.remove('active'));
+    link.classList.add('active');
+    const v = link.dataset.view;
+    document.querySelectorAll('.view').forEach(s=>s.classList.remove('active'));
+    document.getElementById('view-'+v).classList.add('active');
+    document.getElementById('pageTitle').textContent = titles[v][0];
+    document.getElementById('pageSub').textContent = titles[v][1];
+    if(v==='mapa'){ setTimeout(initBigMap, 60); }
+    if(v==='inicio'){ renderStats(); }
+    if(v==='clientes'){ renderClientesTable(); }
+    if(v==='instalaciones'){ renderEquiposTable(); }
+  });
+});
+
+document.getElementById('fechaHoy').textContent = new Date().toLocaleDateString('es-CO',{weekday:'long', day:'2-digit', month:'long', year:'numeric'});
+
+/* ===================== HELPERS ===================== */
+function fmtMoney(n){ return '$' + Number(n||0).toLocaleString('es-CO'); }
+function showToast(msg){
+  const t = document.getElementById('toast');
+  document.getElementById('toastMsg').textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2600);
+}
+function closeModal(id){ document.getElementById(id).classList.remove('active'); }
+function badgeForEstado(estado){
+  if(estado==='activo') return '<span class="badge badge-green">● Activo</span>';
+  if(estado==='suspendido') return '<span class="badge badge-orange">● Suspendido</span>';
+  return '<span class="badge badge-red">● Bloqueado</span>';
+}
+
+/* ===================== INICIO / STATS ===================== */
+function renderStats(){
+  const clientes = getClientes();
+  const equipos = getEquipos();
+  const activos = clientes.filter(c=>c.estado==='activo');
+  const suspendidos = clientes.filter(c=>c.estado==='suspendido');
+  const bloqueados = clientes.filter(c=>c.estado==='bloqueado');
+  const balance = activos.reduce((s,c)=>s+Number(c.precio||0),0);
+  const vencida = suspendidos.reduce((s,c)=>s+Number(c.precio||0),0);
+
+  document.getElementById('statBalance').textContent = fmtMoney(balance);
+  document.getElementById('statBalanceNote').textContent = activos.length + ' clientes activos facturando';
+  document.getElementById('statVencida').textContent = fmtMoney(vencida);
+  document.getElementById('statVencidaNote').textContent = suspendidos.length + ' clientes en mora';
+  document.getElementById('statTotalClientes').textContent = clientes.length;
+  document.getElementById('statEquipos').textContent = equipos.length;
+  document.getElementById('statActivos').textContent = activos.length;
+  document.getElementById('statSuspendidos').textContent = suspendidos.length;
+  document.getElementById('statBloqueados').textContent = bloqueados.length;
+}
+
+/* ===================== CLIENTES ===================== */
+function renderClientesTable(){
+  const clientes = getClientes();
+  const tbody = document.getElementById('tablaClientes');
+  const empty = document.getElementById('clientesEmpty');
+  if(clientes.length===0){ tbody.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display='none';
+  tbody.innerHTML = clientes.map(c=>`
+    <tr>
+      <td><div class="cell-strong">${c.nombre}</div><div class="cell-muted">Cédula: ${c.cedula}</div></td>
+      <td class="mono cell-muted">${c.cedula}</td>
+      <td>
+        <div class="cell-muted">${c.telefono||'—'}</div>
+        <div class="cell-muted">WA: ${c.whatsapp||'—'}</div>
+      </td>
+      <td><span class="badge badge-blue">${c.planNombre}</span><div class="cell-muted mono" style="margin-top:4px;">${fmtMoney(c.precio)}/mes</div></td>
+      <td class="mono cell-muted">${c.lat? c.lat.toFixed(5)+', '+c.lng.toFixed(5) : 'Sin ubicar'}</td>
+      <td>${badgeForEstado(c.estado)}</td>
+      <td>
+        <div class="row-actions">
+          <button class="icon-btn" type="button" onclick="editCliente('${c.id}')" title="Editar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+          </button>
+          <button class="icon-btn danger" type="button" onclick="deleteCliente('${c.id}')" title="Eliminar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0-1 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 6"/></svg>
+          </button>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function openClienteModal(id){
+  document.getElementById('formCliente').reset();
+  document.getElementById('clienteId').value = '';
+  selectedCoords = null;
+  document.getElementById('coordDisplay').textContent = 'Sin coordenadas — usa tu ubicación o marca en el mapa';
+  document.getElementById('clienteModalTitle').textContent = 'Nuevo Cliente';
+  document.getElementById('modalCliente').classList.add('active');
+
+  setTimeout(()=>{
+    initMiniMap(DEFAULT_LAT, DEFAULT_LNG);
+    if(id){
+      const c = getClientes().find(x=>x.id===id);
+      if(c){
+        document.getElementById('clienteModalTitle').textContent = 'Editar Cliente';
+        document.getElementById('clienteId').value = c.id;
+        document.getElementById('cNombre').value = c.nombre;
+        document.getElementById('cCedula').value = c.cedula;
+        document.getElementById('cTelefono').value = c.telefono;
+        document.getElementById('cWhatsapp').value = c.whatsapp;
+        document.getElementById('cEstado').value = c.estado;
+        document.getElementById('cPrecio').value = c.precio;
+        const planOpt = [...document.getElementById('cPlan').options].find(o=>o.value.startsWith(c.planNombre+'|'));
+        if(planOpt) document.getElementById('cPlan').value = planOpt.value;
+        if(c.lat){ setCoords(c.lat, c.lng); }
+      }
+    }
+  }, 80);
+}
+function editCliente(id){ openClienteModal(id); }
+
+function deleteCliente(id){
+  if(!confirm('¿Eliminar este cliente? Esta acción no se puede deshacer.')) return;
+  const clientes = getClientes().filter(c=>c.id!==id);
+  setClientes(clientes);
+  renderClientesTable();
+  renderStats();
+  showToast('Cliente eliminado');
+}
+
+document.getElementById('cPlan').addEventListener('change', function(){
+  const [nombre, precio] = this.value.split('|');
+  document.getElementById('cPrecio').value = precio;
+});
+
+document.getElementById('formCliente').addEventListener('submit', function(e){
+  e.preventDefault();
+  const id = document.getElementById('clienteId').value || 'cli_'+Date.now();
+  const planRaw = document.getElementById('cPlan').value.split('|');
+
+  const nombre = document.getElementById('cNombre').value.trim();
+  const cedula = document.getElementById('cCedula').value.trim();
+  const telefono = document.getElementById('cTelefono').value.trim();
+  if(!nombre || !cedula || !telefono){ showToast('Completa nombre, cédula y teléfono'); return; }
+
+  const cliente = {
+    id, nombre, cedula, telefono,
+    whatsapp: document.getElementById('cWhatsapp').value.trim(),
+    estado: document.getElementById('cEstado').value,
+    planNombre: planRaw[0],
+    precio: Number(document.getElementById('cPrecio').value || planRaw[1] || 0),
+    lat: selectedCoords ? selectedCoords.lat : null,
+    lng: selectedCoords ? selectedCoords.lng : null,
+  };
+
+  const clientes = getClientes();
+  const idx = clientes.findIndex(c=>c.id===id);
+  if(idx>=0) clientes[idx] = cliente; else clientes.push(cliente);
+  setClientes(clientes);
+
+  renderClientesTable();
+  renderStats();
+  closeModal('modalCliente');
+  showToast('Cliente guardado correctamente');
+});
+
+/* ---------- MINI MAPA (form cliente) ---------- */
+function initMiniMap(lat, lng){
+  if(miniMapInstance){ miniMapInstance.remove(); miniMapInstance = null; }
+  miniMapInstance = L.map('miniMap', {zoomControl:true}).setView([lat,lng], 13);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution:'&copy; OpenStreetMap &copy; CARTO', maxZoom:19
+  }).addTo(miniMapInstance);
+  miniMarker = L.marker([lat,lng], {draggable:true}).addTo(miniMapInstance);
+  miniMarker.on('dragend', function(ev){
+    const p = ev.target.getLatLng();
+    setCoords(p.lat, p.lng);
+  });
+  miniMapInstance.on('click', function(ev){
+    setCoords(ev.latlng.lat, ev.latlng.lng);
+  });
+  setTimeout(()=>miniMapInstance.invalidateSize(), 100);
+}
+function setCoords(lat, lng){
+  selectedCoords = {lat, lng};
+  document.getElementById('coordDisplay').textContent = `Lat: ${lat.toFixed(6)}  •  Lng: ${lng.toFixed(6)}`;
+  if(miniMapInstance){
+    if(miniMarker) miniMarker.setLatLng([lat,lng]);
+    miniMapInstance.setView([lat,lng], miniMapInstance.getZoom());
+  }
+}
+function usarMiUbicacion(){
+  if(!navigator.geolocation){ showToast('Tu navegador no soporta geolocalización'); return; }
+  showToast('Obteniendo ubicación GPS...');
+  navigator.geolocation.getCurrentPosition(
+    pos => setCoords(pos.coords.latitude, pos.coords.longitude),
+    err => showToast('No se pudo obtener la ubicación'),
+    {enableHighAccuracy:true, timeout:8000}
+  );
+}
+
+/* ===================== MAPA GENERAL DE CLIENTES ===================== */
+function initBigMap(){
+  const clientes = getClientes();
+  const withCoords = clientes.filter(c=>c.lat && c.lng);
+  const centerLat = withCoords.length ? withCoords[0].lat : DEFAULT_LAT;
+  const centerLng = withCoords.length ? withCoords[0].lng : DEFAULT_LNG;
+
+  if(bigMapInstance){ bigMapInstance.remove(); bigMapInstance = null; }
+  bigMapInstance = L.map('mapaClientesBox').setView([centerLat, centerLng], withCoords.length? 12 : 9);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution:'&copy; OpenStreetMap &copy; CARTO', maxZoom:19
+  }).addTo(bigMapInstance);
+
+  withCoords.forEach(c=>{
+    const color = c.estado==='activo' ? '#22c55e' : (c.estado==='suspendido' ? '#f5a623' : '#ef4444');
+    const icon = L.divIcon({
+      className:'',
+      html:`<div style="width:16px;height:16px;border-radius:50%;background:${color};border:2px solid #0a0f2b;box-shadow:0 0 0 3px rgba(255,255,255,0.08)"></div>`,
+      iconSize:[16,16], iconAnchor:[8,8]
+    });
+    const marker = L.marker([c.lat,c.lng], {icon, draggable:true}).addTo(bigMapInstance);
+    marker.bindPopup(`
+      <div class="popup-title">${c.nombre}</div>
+      <div class="popup-line">Cédula: ${c.cedula}</div>
+      <div class="popup-line">Tel: ${c.telefono||'—'} · WA: ${c.whatsapp||'—'}</div>
+      <span class="popup-plan">${c.planNombre}</span>
+    `);
+    marker.on('dragend', function(ev){
+      const p = ev.target.getLatLng();
+      const list = getClientes();
+      const idx = list.findIndex(x=>x.id===c.id);
+      if(idx>=0){
+        list[idx].lat = p.lat; list[idx].lng = p.lng;
+        setClientes(list);
+        showToast('Ubicación actualizada: '+c.nombre);
+      }
+    });
+  });
+
+  if(withCoords.length===0){
+    setTimeout(()=>showToast('Aún no hay clientes ubicados en el mapa'), 300);
+  }
+  setTimeout(()=>bigMapInstance.invalidateSize(), 150);
+}
+
+/* ===================== EQUIPOS / INSTALACIONES ===================== */
+function renderClienteSelectInEquipo(){
+  const sel = document.getElementById('eCliente');
+  const current = sel.value;
+  const clientes = getClientes();
+  sel.innerHTML = '<option value="">— Ninguno / Infraestructura general —</option>' +
+    clientes.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('');
+  sel.value = current;
+}
+
+function renderEquiposTable(){
+  const equipos = getEquipos();
+  const clientes = getClientes();
+  const tbody = document.getElementById('tablaEquipos');
+  const empty = document.getElementById('equiposEmpty');
+  if(equipos.length===0){ tbody.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display='none';
+  tbody.innerHTML = equipos.map(e=>{
+    const cli = clientes.find(c=>c.id===e.clienteId);
+    return `
+    <tr>
+      <td class="cell-strong">${e.nombre}</td>
+      <td><span class="badge badge-blue">${e.tipo}</span></td>
+      <td class="mono cell-muted">${e.serial}</td>
+      <td class="mono cell-muted">${e.ip}</td>
+      <td class="mono cell-muted">${e.mac}</td>
+      <td class="cell-muted">${cli ? cli.nombre : '—'}</td>
+      <td>
+        <div class="row-actions">
+          <button class="icon-btn" type="button" onclick="editEquipo('${e.id}')" title="Editar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+          </button>
+          <button class="icon-btn danger" type="button" onclick="deleteEquipo('${e.id}')" title="Eliminar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0-1 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 6"/></svg>
+          </button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function openEquipoModal(id){
+  document.getElementById('formEquipo').reset();
+  document.getElementById('equipoId').value = '';
+  document.getElementById('equipoModalTitle').textContent = 'Nuevo Equipo';
+  renderClienteSelectInEquipo();
+  if(id){
+    const e = getEquipos().find(x=>x.id===id);
+    if(e){
+      document.getElementById('equipoModalTitle').textContent = 'Editar Equipo';
+      document.getElementById('equipoId').value = e.id;
+      document.getElementById('eTipo').value = e.tipo;
+      document.getElementById('eNombre').value = e.nombre;
+      document.getElementById('eSerial').value = e.serial;
+      document.getElementById('eIp').value = e.ip;
+      document.getElementById('eMac').value = e.mac;
+      document.getElementById('eCliente').value = e.clienteId || '';
+    }
+  }
+  document.getElementById('modalEquipo').classList.add('active');
+}
+function editEquipo(id){ openEquipoModal(id); }
+
+function deleteEquipo(id){
+  if(!confirm('¿Eliminar este equipo del inventario?')) return;
+  const equipos = getEquipos().filter(e=>e.id!==id);
+  setEquipos(equipos);
+  renderEquiposTable();
+  renderStats();
+  showToast('Equipo eliminado');
+}
+
+document.getElementById('formEquipo').addEventListener('submit', function(e){
+  e.preventDefault();
+  const id = document.getElementById('equipoId').value || 'eq_'+Date.now();
+
+  const nombre = document.getElementById('eNombre').value.trim();
+  const serial = document.getElementById('eSerial').value.trim();
+  const ip = document.getElementById('eIp').value.trim();
+  const mac = document.getElementById('eMac').value.trim();
+  if(!nombre || !serial || !ip || !mac){ showToast('Completa todos los campos requeridos'); return; }
+
+  const equipo = {
+    id,
+    tipo: document.getElementById('eTipo').value,
+    nombre, serial, ip, mac,
+    clienteId: document.getElementById('eCliente').value || null,
+  };
+
+  const equipos = getEquipos();
+  const idx = equipos.findIndex(x=>x.id===id);
+  if(idx>=0) equipos[idx] = equipo; else equipos.push(equipo);
+  setEquipos(equipos);
+
+  renderEquiposTable();
+  renderStats();
+  closeModal('modalEquipo');
+  showToast('Equipo guardado correctamente');
+});
+
+/* ===================== INIT ===================== */
+renderStats();
+renderClientesTable();
+renderEquiposTable();
+</script>
+</body>
+</html>
