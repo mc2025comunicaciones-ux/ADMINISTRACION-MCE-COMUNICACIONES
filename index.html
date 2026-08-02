@@ -1575,6 +1575,15 @@ function doPost(e) {
 
     if (payload.action === 'uploadRecibo') {
       var cedula2 = String(payload.cedula || '').trim();
+      var fila2 = buscarFilaPorCedula(sheet, cedula2);
+
+      // Si ya había un recibo anterior para este cliente, lo manda a la papelera
+      // para que en Drive quede solo el más reciente.
+      if (fila2 > 0) {
+        var urlAnterior = String(sheet.getRange(fila2, 8).getValue() || '').trim();
+        borrarArchivoPorUrl(urlAnterior);
+      }
+
       var carpeta = obtenerCarpetaRecibos();
       var bytes = Utilities.base64Decode(payload.base64);
       var blob = Utilities.newBlob(bytes, 'application/pdf', payload.nombreArchivo || ('recibo_' + cedula2 + '.pdf'));
@@ -1582,8 +1591,8 @@ function doPost(e) {
       archivo.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
       var url = 'https://drive.google.com/uc?export=download&id=' + archivo.getId();
 
-      var fila2 = buscarFilaPorCedula(sheet, cedula2);
       if (fila2 > 0) {
+        // Reemplaza el link viejo por el nuevo en la columna H (nunca se acumulan)
         sheet.getRange(fila2, 8).setValue(url);
       } else {
         // Si el cliente todavía no tenía fila en la Hoja, la crea igual
@@ -1625,6 +1634,20 @@ function obtenerCarpetaRecibos() {
   var carpetas = DriveApp.getFoldersByName(nombre);
   if (carpetas.hasNext()) return carpetas.next();
   return DriveApp.createFolder(nombre);
+}
+
+function borrarArchivoPorUrl(url) {
+  if (!url || url.indexOf('drive.google.com') === -1) return;
+  try {
+    var partes = url.split('id=');
+    if (partes.length < 2) return;
+    var fileId = partes[1].split('&')[0];
+    if (!fileId) return;
+    var archivoViejo = DriveApp.getFileById(fileId);
+    archivoViejo.setTrashed(true);
+  } catch (err) {
+    // Si ya no existe o no se pudo borrar, no interrumpe la subida del nuevo recibo
+  }
 }
 
 function respuesta(obj) {
