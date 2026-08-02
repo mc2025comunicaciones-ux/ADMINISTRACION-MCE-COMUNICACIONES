@@ -253,6 +253,9 @@
   #mapaClientesBox{ height:calc(100vh - 230px); min-height:460px; border-radius:var(--radius); overflow:hidden; border:1px solid var(--border);}
   .leaflet-popup-content-wrapper{ background:#0d1338; color:#eef2ff; border-radius:10px; }
   .leaflet-popup-tip{ background:#0d1338; }
+  .leaflet-control-layers{ border-radius:10px !important; overflow:hidden; border:1px solid #d1d5db !important; box-shadow:0 6px 20px rgba(0,0,0,0.3) !important; font-family:'Inter',sans-serif; }
+  .leaflet-control-layers-toggle{ width:34px !important; height:34px !important; }
+  .leaflet-control-layers-expanded{ padding:10px 12px !important; font-size:12.5px !important; }
   .popup-title{ font-weight:700; font-size:13.5px; margin-bottom:4px; }
   .popup-line{ font-size:12px; color:#a9b3d6; margin-bottom:2px;}
   .popup-plan{ display:inline-block; margin-top:6px; font-size:11px; background:rgba(47,111,237,0.25); color:#a9c4ff; padding:3px 9px; border-radius:999px; }
@@ -323,6 +326,10 @@
     <button type="button" class="navlink" data-view="clientes">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.5 3-6 6.5-6s6.5 2.5 6.5 6"/><circle cx="17" cy="8" r="2.6"/><path d="M15.5 14.2c2.8.3 5 2.6 5 5.8"/></svg>
       Clientes
+    </button>
+    <button type="button" class="navlink" data-view="planes">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V10M18 20V4M6 20v-6"/></svg>
+      Planes
     </button>
     <button type="button" class="navlink" data-view="pagos">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2.5" y="5" width="19" height="14" rx="2.2"/><path d="M2.5 10h19"/><path d="M6 15h4"/></svg>
@@ -483,6 +490,31 @@
       </div>
     </section>
 
+    <!-- ===== VISTA PLANES ===== -->
+    <section class="view" id="view-planes">
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Planes de Internet</h2>
+            <div class="panel-sub">Crea y administra los planes disponibles para asignar a tus clientes</div>
+          </div>
+          <button class="btn btn-primary" type="button" onclick="openPlanModal()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>
+            Nuevo Plan
+          </button>
+        </div>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead><tr><th>Plan</th><th>Velocidad</th><th>Precio Mensual</th><th>Clientes usando este plan</th><th></th></tr></thead>
+            <tbody id="tablaPlanes"></tbody>
+          </table>
+          <div class="empty-state" id="planesEmpty" style="display:none;">
+            <p>No has creado planes todavía. Crea el primero con "Nuevo Plan".</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- ===== VISTA PAGOS ===== -->
     <section class="view" id="view-pagos">
       <div class="panel">
@@ -625,16 +657,17 @@
         <div class="form-field">
           <label>Plan contratado</label>
           <select id="cPlan">
-            <option value="8 Mbps|55000">8 Mbps ($55.000)</option>
-            <option value="Básico 10 Mbps|45000">Básico — 10 Mbps ($45.000)</option>
-            <option value="Estándar 20 Mbps|65000">Estándar — 20 Mbps ($65.000)</option>
-            <option value="Premium 40 Mbps|90000">Premium — 40 Mbps ($90.000)</option>
-            <option value="Negocios 60 Mbps|130000">Negocios — 60 Mbps ($130.000)</option>
+            <option value="">— Selecciona un plan —</option>
           </select>
         </div>
         <div class="form-field">
           <label>Precio mensual (COP)</label>
           <input type="number" id="cPrecio" placeholder="Se autocompleta según el plan">
+        </div>
+        <div class="form-field full" id="sinPlanesAviso" style="display:none;">
+          <div class="coord-display" style="color:#f5a623; background:rgba(245,166,35,0.1); border-color:rgba(245,166,35,0.3);">
+            Aún no has creado planes de internet. Ve a "Planes" en el menú para crear el primero.
+          </div>
         </div>
         <div class="form-field full">
           <label>Ubicación (GPS)</label>
@@ -652,6 +685,35 @@
       <div class="modal-actions">
         <button type="button" class="btn btn-outline" onclick="closeModal('modalCliente')">Cancelar</button>
         <button type="submit" class="btn btn-primary">Guardar Cliente</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ================= MODAL PLAN ================= -->
+<div class="modal-overlay" id="modalPlan">
+  <div class="modal" style="max-width:440px;">
+    <div class="modal-title" id="planModalTitle">Nuevo Plan</div>
+    <div class="modal-sub">Define el nombre, la velocidad y el precio mensual del plan</div>
+    <form id="formPlan">
+      <input type="hidden" id="planId">
+      <div class="form-grid">
+        <div class="form-field full">
+          <label>Nombre del plan</label>
+          <input type="text" id="plNombre" required placeholder="Ej: Básico, Premium, Negocios...">
+        </div>
+        <div class="form-field">
+          <label>Velocidad (Mbps)</label>
+          <input type="number" id="plVelocidad" required min="1" placeholder="Ej: 20">
+        </div>
+        <div class="form-field">
+          <label>Precio mensual (COP)</label>
+          <input type="number" id="plPrecio" required min="0" placeholder="Ej: 65000">
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" onclick="closeModal('modalPlan')">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Guardar Plan</button>
       </div>
     </form>
   </div>
@@ -834,6 +896,112 @@ const DB_KEY_CLIENTES = 'mce_clientes';
 const DB_KEY_EQUIPOS = 'mce_equipos';
 const DB_KEY_PAGOS = 'mce_pagos';
 const DB_KEY_RECIBO_COUNTER = 'mce_recibo_counter';
+const DB_KEY_PLANES = 'mce_planes';
+
+function getPlanes(){ try{ return JSON.parse(localStorage.getItem(DB_KEY_PLANES) || '[]'); }catch(e){ return []; } }
+function setPlanes(list){ localStorage.setItem(DB_KEY_PLANES, JSON.stringify(list)); }
+
+// Siembra planes iniciales de ejemplo solo la primera vez que se usa el panel
+(function seedPlanes(){
+  if(getPlanes().length === 0){
+    setPlanes([
+      { id:'pl_seed1', nombre:'Básico', velocidad:10, precio:45000 },
+      { id:'pl_seed2', nombre:'Estándar', velocidad:20, precio:65000 },
+      { id:'pl_seed3', nombre:'Premium', velocidad:40, precio:90000 },
+      { id:'pl_seed4', nombre:'Negocios', velocidad:60, precio:130000 },
+    ]);
+  }
+})();
+
+function renderPlanesTable(){
+  const planes = getPlanes();
+  const clientes = getClientes();
+  const tbody = document.getElementById('tablaPlanes');
+  const empty = document.getElementById('planesEmpty');
+  if(planes.length===0){ tbody.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display='none';
+  tbody.innerHTML = planes.map(p=>{
+    const enUso = clientes.filter(c=>c.planId===p.id).length;
+    return `
+    <tr>
+      <td class="cell-strong">${p.nombre}</td>
+      <td class="mono cell-muted">${p.velocidad} Mbps</td>
+      <td class="mono cell-muted">${fmtMoney(p.precio)}</td>
+      <td><span class="badge badge-blue">${enUso} cliente${enUso===1?'':'s'}</span></td>
+      <td>
+        <div class="row-actions">
+          <button class="icon-btn" type="button" onclick="editPlan('${p.id}')" title="Editar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+          </button>
+          <button class="icon-btn danger" type="button" onclick="deletePlan('${p.id}')" title="Eliminar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0-1 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 6"/></svg>
+          </button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function openPlanModal(id){
+  document.getElementById('formPlan').reset();
+  document.getElementById('planId').value = '';
+  document.getElementById('planModalTitle').textContent = 'Nuevo Plan';
+  if(id){
+    const p = getPlanes().find(x=>x.id===id);
+    if(p){
+      document.getElementById('planModalTitle').textContent = 'Editar Plan';
+      document.getElementById('planId').value = p.id;
+      document.getElementById('plNombre').value = p.nombre;
+      document.getElementById('plVelocidad').value = p.velocidad;
+      document.getElementById('plPrecio').value = p.precio;
+    }
+  }
+  document.getElementById('modalPlan').classList.add('active');
+}
+function editPlan(id){ openPlanModal(id); }
+
+function deletePlan(id){
+  const enUso = getClientes().filter(c=>c.planId===id).length;
+  if(enUso > 0){
+    if(!confirm(`Este plan lo tienen ${enUso} cliente(s). Los clientes conservarán su precio actual pero el plan dejará de existir en la lista. ¿Eliminar de todas formas?`)) return;
+  } else {
+    if(!confirm('¿Eliminar este plan?')) return;
+  }
+  const p = getPlanes().find(x=>x.id===id);
+  setPlanes(getPlanes().filter(x=>x.id!==id));
+  renderPlanesTable();
+  showToast('Plan eliminado');
+  logAccion('Plan eliminado', p ? p.nombre : id);
+}
+
+document.getElementById('formPlan').addEventListener('submit', function(e){
+  e.preventDefault();
+  const id = document.getElementById('planId').value || 'pl_'+Date.now();
+  const plan = {
+    id,
+    nombre: document.getElementById('plNombre').value.trim(),
+    velocidad: Number(document.getElementById('plVelocidad').value),
+    precio: Number(document.getElementById('plPrecio').value),
+  };
+  const planes = getPlanes();
+  const idx = planes.findIndex(p=>p.id===id);
+  const esNuevo = idx < 0;
+  if(idx>=0) planes[idx] = plan; else planes.push(plan);
+  setPlanes(planes);
+  renderPlanesTable();
+  closeModal('modalPlan');
+  showToast('Plan guardado correctamente');
+  logAccion(esNuevo ? 'Plan creado' : 'Plan editado', plan.nombre + ' — ' + plan.velocidad + ' Mbps — ' + fmtMoney(plan.precio));
+});
+
+function renderPlanSelectInCliente(selectedPlanId){
+  const planes = getPlanes();
+  const sel = document.getElementById('cPlan');
+  sel.innerHTML = '<option value="">— Selecciona un plan —</option>' +
+    planes.map(p=>`<option value="${p.id}" data-precio="${p.precio}" data-nombre="${p.nombre} — ${p.velocidad} Mbps">${p.nombre} — ${p.velocidad} Mbps (${fmtMoney(p.precio)})</option>`).join('');
+  document.getElementById('sinPlanesAviso').style.display = planes.length===0 ? 'block' : 'none';
+  if(selectedPlanId) sel.value = selectedPlanId;
+}
 const DB_KEY_LOGS = 'mce_logs';
 const LOGS_MAX = 50;
 
@@ -900,6 +1068,7 @@ function periodoTexto(periodo){
 const titles = {
   inicio:['Inicio','Resumen operativo de tu red'],
   clientes:['Clientes','Gestiona la información y ubicación de cada cliente'],
+  planes:['Planes de Internet','Crea y administra los planes disponibles'],
   pagos:['Pagos','Registra pagos, genera recibos y controla la cartera'],
   mapa:['Mapa de Clientes','Visualiza y reubica a tus clientes geográficamente'],
   instalaciones:['Instalaciones','Inventario de equipos de red en campo'],
@@ -916,6 +1085,7 @@ function irAVista(v){
   if(v==='mapa'){ setTimeout(initBigMap, 60); }
   if(v==='inicio'){ renderStats(); }
   if(v==='clientes'){ renderClientesTable(); }
+  if(v==='planes'){ renderPlanesTable(); }
   if(v==='pagos'){ renderPagosTable(document.getElementById('buscarPago').value); }
   if(v==='instalaciones'){ renderEquiposTable(); }
   if(v==='logs'){ renderLogsTable(); }
@@ -1030,6 +1200,7 @@ function openClienteModal(id){
   selectedCoords = null;
   document.getElementById('coordDisplay').textContent = 'Sin coordenadas — usa tu ubicación o marca en el mapa';
   document.getElementById('clienteModalTitle').textContent = 'Nuevo Cliente';
+  renderPlanSelectInCliente();
   document.getElementById('modalCliente').classList.add('active');
 
   setTimeout(()=>{
@@ -1047,8 +1218,7 @@ function openClienteModal(id){
         document.getElementById('cEstado').value = c.estado;
         document.getElementById('cCorte').value = c.corte || '';
         document.getElementById('cPrecio').value = c.precio;
-        const planOpt = [...document.getElementById('cPlan').options].find(o=>o.value.startsWith(c.planNombre+'|'));
-        if(planOpt) document.getElementById('cPlan').value = planOpt.value;
+        renderPlanSelectInCliente(c.planId);
         if(c.lat){ setCoords(c.lat, c.lng); }
       }
     }
@@ -1068,14 +1238,17 @@ function deleteCliente(id){
 }
 
 document.getElementById('cPlan').addEventListener('change', function(){
-  const [nombre, precio] = this.value.split('|');
-  document.getElementById('cPrecio').value = precio;
+  const opt = this.selectedOptions[0];
+  if(opt && opt.dataset.precio){ document.getElementById('cPrecio').value = opt.dataset.precio; }
 });
 
 document.getElementById('formCliente').addEventListener('submit', function(e){
   e.preventDefault();
   const id = document.getElementById('clienteId').value || 'cli_'+Date.now();
-  const planRaw = document.getElementById('cPlan').value.split('|');
+  const planSel = document.getElementById('cPlan');
+  const planOpt = planSel.selectedOptions[0];
+  const planId = planSel.value || null;
+  const planNombre = (planOpt && planOpt.dataset.nombre) ? planOpt.dataset.nombre : (planOpt ? planOpt.textContent : 'Sin plan');
 
   const nombre = document.getElementById('cNombre').value.trim();
   const cedula = document.getElementById('cCedula').value.trim();
@@ -1083,14 +1256,16 @@ document.getElementById('formCliente').addEventListener('submit', function(e){
   const telefono = document.getElementById('cTelefono').value.trim();
   const corte = Number(document.getElementById('cCorte').value);
   if(!nombre || !cedula || !telefono || !vereda || !corte){ showToast('Completa nombre, cédula, vereda, teléfono y día de corte'); return; }
+  if(!planId){ showToast('Selecciona un plan contratado (créalo primero en "Planes" si no existe)'); return; }
 
   const cliente = {
     id, nombre, cedula, vereda, telefono,
     whatsapp: document.getElementById('cWhatsapp').value.trim(),
     estado: document.getElementById('cEstado').value,
     corte,
-    planNombre: planRaw[0],
-    precio: Number(document.getElementById('cPrecio').value || planRaw[1] || 0),
+    planId,
+    planNombre,
+    precio: Number(document.getElementById('cPrecio').value || 0),
     lat: selectedCoords ? selectedCoords.lat : null,
     lng: selectedCoords ? selectedCoords.lng : null,
   };
@@ -1108,13 +1283,35 @@ document.getElementById('formCliente').addEventListener('submit', function(e){
   logAccion(esNuevo ? 'Cliente creado' : 'Cliente editado', cliente.nombre + ' — ' + cliente.vereda);
 });
 
+/* ---------- CAPAS DE MAPA (permite cambiar el tipo de relieve) ---------- */
+function crearCapasBase(){
+  const calles = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution:'&copy; OpenStreetMap contributors', maxZoom:19
+  });
+  const satelite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    attribution:'Tiles &copy; Esri', maxZoom:19
+  });
+  const terreno = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+    attribution:'&copy; OpenStreetMap contributors, SRTM | &copy; OpenTopoMap', maxZoom:17
+  });
+  const oscuro = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution:'&copy; OpenStreetMap &copy; CARTO', maxZoom:19
+  });
+  return {
+    'Calles': calles,
+    'Satélite': satelite,
+    'Terreno (relieve)': terreno,
+    'Oscuro': oscuro
+  };
+}
+
 /* ---------- MINI MAPA (form cliente) ---------- */
 function initMiniMap(lat, lng){
   if(miniMapInstance){ miniMapInstance.remove(); miniMapInstance = null; }
   miniMapInstance = L.map('miniMap', {zoomControl:true}).setView([lat,lng], 13);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-    attribution:'&copy; OpenStreetMap &copy; CARTO', maxZoom:19
-  }).addTo(miniMapInstance);
+  const capas = crearCapasBase();
+  capas['Calles'].addTo(miniMapInstance);
+  L.control.layers(capas, null, {position:'topright', collapsed:true}).addTo(miniMapInstance);
   miniMarker = L.marker([lat,lng], {draggable:true}).addTo(miniMapInstance);
   miniMarker.on('dragend', function(ev){
     const p = ev.target.getLatLng();
@@ -1392,15 +1589,15 @@ function initBigMap(){
 
   if(bigMapInstance){ bigMapInstance.remove(); bigMapInstance = null; }
   bigMapInstance = L.map('mapaClientesBox').setView([centerLat, centerLng], withCoords.length? 12 : 9);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-    attribution:'&copy; OpenStreetMap &copy; CARTO', maxZoom:19
-  }).addTo(bigMapInstance);
+  const capas = crearCapasBase();
+  capas['Calles'].addTo(bigMapInstance);
+  L.control.layers(capas, null, {position:'topright', collapsed:true}).addTo(bigMapInstance);
 
   withCoords.forEach(c=>{
     const color = c.estado==='activo' ? '#22c55e' : (c.estado==='suspendido' ? '#f5a623' : '#ef4444');
     const icon = L.divIcon({
       className:'',
-      html:`<div style="width:16px;height:16px;border-radius:50%;background:${color};border:2px solid #0a0f2b;box-shadow:0 0 0 3px rgba(255,255,255,0.08)"></div>`,
+      html:`<div style="width:16px;height:16px;border-radius:50%;background:${color};border:2.5px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.5)"></div>`,
       iconSize:[16,16], iconAnchor:[8,8]
     });
     const marker = L.marker([c.lat,c.lng], {icon, draggable:true}).addTo(bigMapInstance);
@@ -1535,6 +1732,7 @@ document.getElementById('formEquipo').addEventListener('submit', function(e){
 /* ===================== INIT ===================== */
 renderStats();
 renderClientesTable();
+renderPlanesTable();
 renderPagosTable('');
 renderEquiposTable();
 renderLogsTable();
