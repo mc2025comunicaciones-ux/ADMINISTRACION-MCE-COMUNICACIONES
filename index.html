@@ -693,13 +693,20 @@
           <li>Abre tu Hoja de Google de clientes (la misma que usa tu página pública) en <span class="mono" style="color:var(--accent-light);">sheets.google.com</span>.</li>
           <li>Ve a <b>Extensiones → Apps Script</b>.</li>
           <li>Borra el contenido que aparece y pega el código del botón "Descargar código" de arriba.</li>
-          <li>Haz clic en <b>Implementar → Nueva implementación</b>, tipo <b>Aplicación web</b>.</li>
-          <li>En "Quién tiene acceso" elige <b>Cualquier usuario</b> y haz clic en <b>Implementar</b>. Autoriza los permisos que pida Google.</li>
+          <li>Guarda (ícono de disco). Arriba, en el menú desplegable de funciones, elige <b>autorizarPermisos</b> y presiona <b>▶ Ejecutar</b>.</li>
+          <li>Google te va a pedir autorización. Elige tu cuenta → si aparece "Google no verificó esta app", haz clic en <b>Configuración avanzada</b> → <b>Ir a [nombre del proyecto] (no seguro)</b> → <b>Permitir</b>. Esto es normal porque es tu propio script, no de un tercero.</li>
+          <li>Revisa en "Ver → Registros" que diga "Permisos concedidos correctamente" y no un error.</li>
+          <li>Ahora sí: <b>Implementar → Nueva implementación</b>, tipo <b>Aplicación web</b>.</li>
+          <li>Muy importante: <b>Ejecutar como</b> debe ser <b>Yo (tu correo)</b> — nunca "Usuario que accede a la app web". <b>Quién tiene acceso</b> debe ser <b>Cualquier usuario</b>. Haz clic en <b>Implementar</b>.</li>
           <li>Copia la URL que te da (termina en <span class="mono">/exec</span>) y pégala arriba en "URL del Web App", luego "Guardar Configuración" y "Probar Conexión".</li>
         </ol>
+        <div class="coord-display" style="margin-top:16px; color:var(--danger); background:rgba(239,68,68,0.1); border-color:rgba(239,68,68,0.3); align-items:flex-start; line-height:1.6;">
+          <b style="display:block; margin-bottom:6px;">¿Te sale el error "You do not have permission to call SpreadsheetApp.openById"?</b>
+          Significa que el script nunca completó el paso de autorización (paso 4-6 de arriba), o que en el paso 8 elegiste "Usuario que accede a la app web" en vez de "Yo". Repite esos pasos exactamente: ejecuta <span class="mono">autorizarPermisos</span> manualmente desde el editor, acepta los permisos, y vuelve a implementar con "Ejecutar como: Yo". Después de corregirlo, ve a <b>Implementar → Administrar implementaciones</b>, edita tu implementación activa, "Nueva versión" → <b>Implementar</b> (la URL no cambia).
+        </div>
         <div class="coord-display" style="margin-top:16px; color:var(--accent-cyan); align-items:flex-start; line-height:1.6;">
           <b style="display:block; margin-bottom:6px;">¿Ya lo habías configurado antes y los recibos no le aparecen al cliente?</b>
-          Actualicé el código para corregir ese problema. Vuelve a descargarlo, entra a tu Apps Script, borra todo y pega el nuevo código — pero esta vez, en vez de "Nueva implementación", ve a <b>Implementar → Administrar implementaciones</b>, haz clic en el lápiz (editar) de tu implementación activa, cambia "Versión" a <b>Nueva versión</b> y dale <b>Implementar</b> (la URL no cambia). Luego usa "Probar Conexión" aquí — ahora prueba también el envío de datos, no solo la lectura, para detectar exactamente dónde está fallando. Finalmente usa "Sincronizar Todos los Clientes Ahora" para que los clientes que ya tenías creados por fin generen su fila en la Hoja.
+          Descarga el código de nuevo (ya incluye la corrección), sigue los pasos de autorización de arriba, y luego ve a <b>Implementar → Administrar implementaciones</b>, edita tu implementación activa, "Nueva versión" → <b>Implementar</b>. Luego usa "Probar Conexión" aquí y finalmente "Sincronizar Todos los Clientes Ahora" para que los clientes que ya tenías creados generen su fila en la Hoja.
         </div>
         <div class="coord-display" style="margin-top:16px; color:var(--warning); background:rgba(245,166,35,0.1); border-color:rgba(245,166,35,0.3); align-items:flex-start; line-height:1.6;">
           Nota honesta: esta sincronización solo ocurre cuando tú (o tu equipo) guarda datos desde este panel con conexión a internet. No es un servidor propio ni una base de datos en tiempo real — es el mismo mecanismo gratuito que ya usa tu página pública. Si el navegador donde tienes abierto el panel no tiene internet en ese momento, ese cliente no se sincroniza hasta que uses "Sincronizar Todos los Clientes Ahora".
@@ -1544,6 +1551,22 @@ function obtenerCarpetaRecibos() {
 
 function respuesta(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+}
+
+// ============================================================
+// EJECUTA ESTA FUNCIÓN MANUALMENTE UNA VEZ (botón ▶ Ejecutar,
+// seleccionándola en el menú de arriba) ANTES de implementar.
+// Google te pedirá autorizar acceso a Sheets y Drive: acéptalo.
+// Sin este paso, el envío de datos falla con error de permisos
+// aunque la lectura funcione.
+// ============================================================
+function autorizarPermisos() {
+  var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  var sheet = ss.getSheets()[0];
+  Logger.log('Hoja detectada: ' + sheet.getName());
+  var carpeta = obtenerCarpetaRecibos();
+  Logger.log('Carpeta de recibos: ' + carpeta.getName());
+  Logger.log('Permisos concedidos correctamente.');
 }
 `;
   const blob = new Blob([codigo], { type:'text/plain' });
