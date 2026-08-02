@@ -697,6 +697,10 @@
           <li>En "Quién tiene acceso" elige <b>Cualquier usuario</b> y haz clic en <b>Implementar</b>. Autoriza los permisos que pida Google.</li>
           <li>Copia la URL que te da (termina en <span class="mono">/exec</span>) y pégala arriba en "URL del Web App", luego "Guardar Configuración" y "Probar Conexión".</li>
         </ol>
+        <div class="coord-display" style="margin-top:16px; color:var(--accent-cyan); align-items:flex-start; line-height:1.6;">
+          <b style="display:block; margin-bottom:6px;">¿Ya lo habías configurado antes y los recibos no le aparecen al cliente?</b>
+          Actualicé el código para corregir ese problema. Vuelve a descargarlo, entra a tu Apps Script, borra todo y pega el nuevo código — pero esta vez, en vez de "Nueva implementación", ve a <b>Implementar → Administrar implementaciones</b>, haz clic en el lápiz (editar) de tu implementación activa, cambia "Versión" a <b>Nueva versión</b> y dale <b>Implementar</b> (la URL no cambia). Luego usa "Probar Conexión" aquí — ahora prueba también el envío de datos, no solo la lectura, para detectar exactamente dónde está fallando. Finalmente usa "Sincronizar Todos los Clientes Ahora" para que los clientes que ya tenías creados por fin generen su fila en la Hoja.
+        </div>
         <div class="coord-display" style="margin-top:16px; color:var(--warning); background:rgba(245,166,35,0.1); border-color:rgba(245,166,35,0.3); align-items:flex-start; line-height:1.6;">
           Nota honesta: esta sincronización solo ocurre cuando tú (o tu equipo) guarda datos desde este panel con conexión a internet. No es un servidor propio ni una base de datos en tiempo real — es el mismo mecanismo gratuito que ya usa tu página pública. Si el navegador donde tienes abierto el panel no tiene internet en ese momento, ese cliente no se sincroniza hasta que uses "Sincronizar Todos los Clientes Ahora".
         </div>
@@ -1342,14 +1346,34 @@ function mostrarEstadoSync(msg, ok){
 async function probarConexionSync(){
   const url = getSyncUrl();
   if(!url){ showToast('Primero pega la URL del Web App y guarda'); return; }
-  mostrarEstadoSync('Probando conexión...', true);
+  mostrarEstadoSync('Probando conexión (lectura)...', true);
   try{
     const res = await fetch(url, { method:'GET' });
     const data = await res.json();
-    if(data && data.ok){ mostrarEstadoSync('✔ Conexión exitosa. El puente con tu Hoja de Google está funcionando.', true); }
-    else{ mostrarEstadoSync('El servidor respondió pero con un error: ' + (data.error||'desconocido'), false); }
+    if(!(data && data.ok)){
+      mostrarEstadoSync('El servidor respondió pero con un error: ' + (data.error||'desconocido'), false);
+      return;
+    }
   }catch(err){
-    mostrarEstadoSync('No se pudo conectar. Revisa que la URL termine en /exec y que la implementación tenga acceso "Cualquier usuario".', false);
+    mostrarEstadoSync('No se pudo conectar (lectura). Revisa que la URL termine en /exec y que la implementación tenga acceso "Cualquier usuario".', false);
+    return;
+  }
+
+  mostrarEstadoSync('Lectura OK. Probando envío de datos (esto es lo que usan los clientes y recibos)...', true);
+  try{
+    const res2 = await fetch(url, {
+      method:'POST',
+      headers:{ 'Content-Type':'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action:'ping' })
+    });
+    const data2 = await res2.json();
+    if(data2 && data2.ok){
+      mostrarEstadoSync('✔ Conexión completa exitosa. Lectura y envío de datos funcionando correctamente.', true);
+    } else {
+      mostrarEstadoSync('La lectura funciona pero el envío de datos falló: ' + (data2.error||'respuesta inesperada') + '. Vuelve a descargar el código actualizado y vuelve a implementarlo.', false);
+    }
+  }catch(err){
+    mostrarEstadoSync('La lectura funciona pero el envío de datos (POST) falló — esto es lo que impide que los recibos y clientes se guarden. Descarga el código actualizado, pégalo de nuevo en Apps Script y crea una NUEVA implementación (Implementar → Administrar implementaciones → editar → Nueva versión).', false);
   }
 }
 
@@ -1394,7 +1418,7 @@ async function syncReciboToSheet(cliente, pago, base64Pdf){
   const url = getSyncUrl();
   if(!url) return { ok:false, skip:true };
   const nombreArchivo = `Recibo_${pago.numero}_${cliente.nombre.replace(/[^a-zA-Z0-9]+/g,'_')}.pdf`;
-  const payload = { action:'uploadRecibo', cedula: cliente.cedula, nombreArchivo, base64: base64Pdf };
+  const payload = { action:'uploadRecibo', cedula: cliente.cedula, nombreCliente: cliente.nombre, nombreArchivo, base64: base64Pdf };
   try{
     const res = await fetch(url, {
       method:'POST',
@@ -1465,6 +1489,10 @@ function doPost(e) {
       return respuesta({ ok: true, accion: fila > 0 ? 'actualizado' : 'creado' });
     }
 
+    if (payload.action === 'ping') {
+      return respuesta({ ok: true, mensaje: 'pong' });
+    }
+
     if (payload.action === 'uploadRecibo') {
       var cedula2 = String(payload.cedula || '').trim();
       var carpeta = obtenerCarpetaRecibos();
@@ -1475,9 +1503,17 @@ function doPost(e) {
       var url = 'https://drive.google.com/uc?export=download&id=' + archivo.getId();
 
       var fila2 = buscarFilaPorCedula(sheet, cedula2);
-      if (fila2 > 0) { sheet.getRange(fila2, 8).setValue(url); }
+      if (fila2 > 0) {
+        sheet.getRange(fila2, 8).setValue(url);
+      } else {
+        // Si el cliente todavía no tenía fila en la Hoja, la crea igual
+        // para que el recibo no se pierda.
+        sheet.appendRow([
+          payload.nombreCliente || '', cedula2, '', '', '', '', '', url, ''
+        ]);
+      }
 
-      return respuesta({ ok: true, url: url });
+      return respuesta({ ok: true, url: url, filaEncontrada: fila2 > 0 });
     }
 
     return respuesta({ ok: false, error: 'Acción no reconocida' });
@@ -2183,16 +2219,33 @@ function generarPDFRecibo(cliente, pago){
     doc.save(nombreArchivo);
 
     // Además de descargarlo localmente, lo sube a la Hoja de Google para que
-    // el cliente pueda descargarlo desde "Gestión Cliente" en la página pública
+    // el cliente pueda descargarlo desde "Gestión Cliente" en la página pública.
+    // Primero se asegura de que la fila del cliente exista/esté actualizada,
+    // y solo después sube el recibo — así nunca falla por no encontrar la fila.
     if(getSyncUrl() && getSyncAuto()){
-      try{
-        const datauri = doc.output('datauristring');
-        const base64Pdf = datauri.split(',')[1];
-        syncReciboToSheet(cliente, pago, base64Pdf).then(r=>{
-          if(r && r.ok){ showToast('Recibo disponible para el cliente en la página pública'); logAccion('Recibo sincronizado', cliente.nombre + ' — Recibo N° ' + pago.numero); }
-          else if(!r || !r.skip){ showToast('No se pudo subir el recibo a la página pública (revisa Sincronización)'); }
-        });
-      }catch(e){ console.error(e); }
+      (async ()=>{
+        try{
+          const rCliente = await syncClienteToSheet(cliente);
+          if(!rCliente || !rCliente.ok){
+            showToast('No se pudo preparar la fila del cliente en la Hoja (revisa Sincronización)');
+            logAccion('Error de sincronización', cliente.nombre + ' — ' + (rCliente && rCliente.error ? rCliente.error : 'sin respuesta del servidor'));
+            return;
+          }
+          const datauri = doc.output('datauristring');
+          const base64Pdf = datauri.split(',')[1];
+          const rRecibo = await syncReciboToSheet(cliente, pago, base64Pdf);
+          if(rRecibo && rRecibo.ok){
+            showToast('Recibo disponible para el cliente en la página pública');
+            logAccion('Recibo sincronizado', cliente.nombre + ' — Recibo N° ' + pago.numero);
+          } else {
+            showToast('No se pudo subir el recibo a la página pública (revisa Sincronización)');
+            logAccion('Error al subir recibo', cliente.nombre + ' — ' + (rRecibo && rRecibo.error ? rRecibo.error : 'sin respuesta del servidor'));
+          }
+        }catch(e){
+          console.error(e);
+          showToast('Error inesperado sincronizando el recibo');
+        }
+      })();
     }
   }catch(err){
     console.error(err);
