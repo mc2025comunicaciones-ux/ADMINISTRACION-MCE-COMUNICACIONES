@@ -1836,6 +1836,36 @@ function doPost(e) {
       return respuesta({ ok: true, accion: fila > 0 ? 'actualizado' : 'creado' });
     }
 
+    if (payload.action === 'upsertPlan') {
+      var hojaPlanes = obtenerHoja(ss, 'Planes', ['id','nombre','velocidad','precio']);
+      var dp = payload.data;
+      var filaP = buscarFilaPorId(hojaPlanes, dp.id);
+      var valoresP = [dp.id || ('pl_' + new Date().getTime()), dp.nombre || '', Number(dp.velocidad || 0), Number(dp.precio || 0)];
+      if (filaP > 0) { hojaPlanes.getRange(filaP, 1, 1, valoresP.length).setValues([valoresP]); }
+      else { hojaPlanes.appendRow(valoresP); }
+      return respuesta({ ok: true });
+    }
+
+    if (payload.action === 'upsertPago') {
+      var hojaPagos = obtenerHoja(ss, 'Pagos', ['id','cedulaCliente','nombreCliente','periodo','fecha','valor','autorizadoPor','numero']);
+      var dg = payload.data;
+      var filaG = buscarFilaPorId(hojaPagos, dg.id);
+      var valoresG = [dg.id || '', dg.cedulaCliente || '', dg.nombreCliente || '', dg.periodo || '', dg.fecha || '', Number(dg.valor || 0), dg.autorizadoPor || '', dg.numero || ''];
+      if (filaG > 0) { hojaPagos.getRange(filaG, 1, 1, valoresG.length).setValues([valoresG]); }
+      else { hojaPagos.appendRow(valoresG); }
+      return respuesta({ ok: true });
+    }
+
+    if (payload.action === 'upsertEquipo') {
+      var hojaEquipos = obtenerHoja(ss, 'Equipos', ['id','tipo','nombre','serial','ip','mac','cedulaCliente']);
+      var de = payload.data;
+      var filaE = buscarFilaPorId(hojaEquipos, de.id);
+      var valoresE = [de.id || '', de.tipo || '', de.nombre || '', de.serial || '', de.ip || '', de.mac || '', de.cedulaCliente || ''];
+      if (filaE > 0) { hojaEquipos.getRange(filaE, 1, 1, valoresE.length).setValues([valoresE]); }
+      else { hojaEquipos.appendRow(valoresE); }
+      return respuesta({ ok: true });
+    }
+
     if (payload.action === 'listarTodo') {
       var datosCompletos = sheet.getDataRange().getValues();
       var clientesList = [];
@@ -1874,9 +1904,47 @@ function doPost(e) {
           lng: lngVal
         });
       }
-      // Esta Hoja solo gestiona clientes; planes, pagos y equipos
-      // se mantienen únicamente en cada dispositivo por ahora.
-      return respuesta({ ok: true, data: { clientes: clientesList, planes: [], pagos: [], equipos: [] } });
+
+      var planesList = [];
+      var hojaPlanesLeer = ss.getSheetByName('Planes');
+      if (hojaPlanesLeer) {
+        var datosPlanes = hojaPlanesLeer.getDataRange().getValues();
+        for (var j = 1; j < datosPlanes.length; j++) {
+          var fp2 = datosPlanes[j];
+          if (!fp2[0]) continue;
+          planesList.push({ id: fp2[0], nombre: fp2[1] || '', velocidad: Number(fp2[2] || 0), precio: Number(fp2[3] || 0) });
+        }
+      }
+
+      var pagosList = [];
+      var hojaPagosLeer = ss.getSheetByName('Pagos');
+      if (hojaPagosLeer) {
+        var datosPagos = hojaPagosLeer.getDataRange().getValues();
+        for (var k = 1; k < datosPagos.length; k++) {
+          var fg2 = datosPagos[k];
+          if (!fg2[0]) continue;
+          var fechaPago = fg2[4];
+          pagosList.push({
+            id: fg2[0], cedulaCliente: fg2[1] || '', nombreCliente: fg2[2] || '',
+            periodo: fg2[3] || '',
+            fecha: (fechaPago instanceof Date) ? Utilities.formatDate(fechaPago, Session.getScriptTimeZone(), 'yyyy-MM-dd') : (fechaPago || ''),
+            valor: Number(fg2[5] || 0), autorizadoPor: fg2[6] || '', numero: fg2[7] || ''
+          });
+        }
+      }
+
+      var equiposList = [];
+      var hojaEquiposLeer = ss.getSheetByName('Equipos');
+      if (hojaEquiposLeer) {
+        var datosEquipos = hojaEquiposLeer.getDataRange().getValues();
+        for (var m = 1; m < datosEquipos.length; m++) {
+          var fe2 = datosEquipos[m];
+          if (!fe2[0]) continue;
+          equiposList.push({ id: fe2[0], tipo: fe2[1] || '', nombre: fe2[2] || '', serial: fe2[3] || '', ip: fe2[4] || '', mac: fe2[5] || '', cedulaCliente: fe2[6] || '' });
+        }
+      }
+
+      return respuesta({ ok: true, data: { clientes: clientesList, planes: planesList, pagos: pagosList, equipos: equiposList } });
     }
 
     if (payload.action === 'ping') {
@@ -1960,6 +2028,28 @@ function obtenerCarpetaRecibos() {
   var carpetas = DriveApp.getFoldersByName(nombre);
   if (carpetas.hasNext()) return carpetas.next();
   return DriveApp.createFolder(nombre);
+}
+
+// Devuelve la pestaña (hoja) con ese nombre dentro de la misma Hoja de
+// cálculo; si no existe todavía, la crea con encabezados la primera vez.
+function obtenerHoja(ss, nombre, encabezados) {
+  var hoja = ss.getSheetByName(nombre);
+  if (!hoja) {
+    hoja = ss.insertSheet(nombre);
+    hoja.appendRow(encabezados);
+  }
+  return hoja;
+}
+
+// Busca una fila por el valor de su columna A (id). Igual que
+// buscarFilaPorCedula pero genérico para Planes/Pagos/Equipos.
+function buscarFilaPorId(hoja, id) {
+  if (!id) return -1;
+  var datos = hoja.getDataRange().getValues();
+  for (var i = 1; i < datos.length; i++) {
+    if (String(datos[i][0]) === String(id)) return i + 1;
+  }
+  return -1;
 }
 
 function borrarArchivoPorUrl(url) {
