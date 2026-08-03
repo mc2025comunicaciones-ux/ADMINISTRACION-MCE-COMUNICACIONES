@@ -2465,14 +2465,15 @@ document.getElementById('formCliente').addEventListener('submit', function(e){
 
 /* ---------- CAPAS DE MAPA (permite cambiar el tipo de relieve) ---------- */
 function crearCapasBase(){
-  const calles = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution:'&copy; OpenStreetMap contributors', maxZoom:19
+  const MAPTILER_KEY = 'nznDuiJ2nFPkfk3Q3RfJ';
+  const calles = L.tileLayer('https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=' + MAPTILER_KEY, {
+    attribution:'&copy; MapTiler &copy; OpenStreetMap contributors', maxZoom:20
   });
   const satelite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
     attribution:'Tiles &copy; Esri', maxZoom:19
   });
-  const terreno = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-    attribution:'&copy; OpenStreetMap contributors, SRTM | &copy; OpenTopoMap', maxZoom:17
+  const terreno = L.tileLayer('https://api.maptiler.com/maps/outdoor-v2/{z}/{x}/{y}.png?key=' + MAPTILER_KEY, {
+    attribution:'&copy; MapTiler &copy; OpenStreetMap contributors', maxZoom:20
   });
   const oscuro = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
     attribution:'&copy; OpenStreetMap &copy; CARTO', maxZoom:19
