@@ -1557,7 +1557,9 @@ async function syncClienteToSheet(cliente){
       vencimientoISO: asegurarFechaVencimiento(cliente),
       valorNum: Number(cliente.precio || 0),
       vereda: cliente.vereda || '',
-      puntoConexion: cliente.puntoConexion || buscarPuntoConexion(cliente.id)
+      puntoConexion: cliente.puntoConexion || buscarPuntoConexion(cliente.id),
+      lat: (cliente.lat!=null && cliente.lat!=='') ? cliente.lat : '',
+      lng: (cliente.lng!=null && cliente.lng!=='') ? cliente.lng : ''
     }
   };
   try{
@@ -1683,6 +1685,10 @@ async function importarDatosDesdeNube(){
         local.fechaVencimiento = rc.vencimiento || local.fechaVencimiento;
         local.precio = rc.valor || local.precio;
         local.puntoConexion = rc.puntoConexion || local.puntoConexion;
+        // Solo se reemplazan las coordenadas si la Hoja trae unas válidas,
+        // así no se borra una ubicación marcada localmente si en la Hoja
+        // ese cliente todavía no tiene columna J llena.
+        if (rc.lat != null && rc.lng != null) { local.lat = rc.lat; local.lng = rc.lng; }
       } else {
         local = {
           id: 'cli_' + cedulaKey,
@@ -1691,7 +1697,8 @@ async function importarDatosDesdeNube(){
           corte: 1, fechaVencimiento: rc.vencimiento || '',
           planId: planCoincidente ? planCoincidente.id : null,
           planNombre: rc.plan || 'Sin plan', planVelocidad: planCoincidente ? planCoincidente.velocidad : 0,
-          precio: Number(rc.valor||0), puntoConexion: rc.puntoConexion || '', lat:null, lng:null
+          precio: Number(rc.valor||0), puntoConexion: rc.puntoConexion || '',
+          lat: (rc.lat != null ? rc.lat : null), lng: (rc.lng != null ? rc.lng : null)
         };
         clientesLocales.push(local);
         mapaClientesPorCedula[cedulaKey] = local;
@@ -1730,6 +1737,12 @@ async function importarDatosDesdeNube(){
     renderStats(); renderClientesTable(); renderPlanesTable();
     renderPagosTable(document.getElementById('buscarPago').value);
     renderEquiposTable();
+
+    // Si el mapa de clientes ya estaba abierto/inicializado, se refresca
+    // para que las coordenadas recién importadas aparezcan de inmediato.
+    if (typeof bigMapInstance !== 'undefined' && bigMapInstance) {
+      try { initBigMap(); } catch(e) {}
+    }
 
     mostrarEstadoSync(`✔ Importado: ${(remoto.clientes||[]).length} clientes, ${(remoto.planes||[]).length} planes, ${(remoto.pagos||[]).length} pagos, ${(remoto.equipos||[]).length} equipos revisados.`, true);
     showToast('Datos importados desde la nube');
@@ -1793,6 +1806,12 @@ function doPost(e) {
       var fechaObj = d.vencimientoISO ? new Date(d.vencimientoISO + 'T00:00:00') : null;
       var valorNum = Number(d.valorNum || 0);
 
+      // Columna J: coordenadas del cliente en formato "lat,lng" (texto)
+      var coordsStr = '';
+      if (d.lat !== undefined && d.lat !== null && d.lat !== '' && d.lng !== undefined && d.lng !== null && d.lng !== '') {
+        coordsStr = d.lat + ',' + d.lng;
+      }
+
       if (fila > 0) {
         sheet.getRange(fila, 1).setValue(d.nombre || '');
         sheet.getRange(fila, 3).setValue(d.plan || '');
@@ -1801,16 +1820,63 @@ function doPost(e) {
         sheet.getRange(fila, 6).setNumberFormat('"$"#,##0').setValue(valorNum);
         sheet.getRange(fila, 7).setValue(d.vereda || '');
         sheet.getRange(fila, 9).setValue(d.puntoConexion || '');
+        // Solo se sobreescribe la columna J si llegaron coordenadas nuevas,
+        // así no se borra una ubicación ya guardada cuando se sincroniza
+        // un cliente desde un dispositivo que todavía no tiene coordenadas.
+        if (coordsStr) { sheet.getRange(fila, 10).setValue(coordsStr); }
       } else {
         var filaNueva = sheet.getLastRow() + 1;
         sheet.appendRow([
           d.nombre || '', cedula, d.plan || '', d.estado || '',
-          '', '', d.vereda || '', '', d.puntoConexion || ''
+          '', '', d.vereda || '', '', d.puntoConexion || '', coordsStr
         ]);
         if (fechaObj) { sheet.getRange(filaNueva, 5).setNumberFormat('d/MM/yyyy').setValue(fechaObj); }
         sheet.getRange(filaNueva, 6).setNumberFormat('"$"#,##0').setValue(valorNum);
       }
       return respuesta({ ok: true, accion: fila > 0 ? 'actualizado' : 'creado' });
+    }
+
+    if (payload.action === 'listarTodo') {
+      var datosCompletos = sheet.getDataRange().getValues();
+      var clientesList = [];
+      for (var i = 1; i < datosCompletos.length; i++) {
+        var filaDatos = datosCompletos[i];
+        var cedulaFila = String(filaDatos[1] || '').trim();
+        if (!cedulaFila) continue; // fila vacía, se ignora
+
+        var coordsCelda = String(filaDatos[9] || '').trim();
+        var latVal = null, lngVal = null;
+        if (coordsCelda) {
+          var partesCoord = coordsCelda.split(',');
+          var pLat = parseFloat(partesCoord[0]);
+          var pLng = parseFloat(partesCoord[1]);
+          if (!isNaN(pLat) && !isNaN(pLng)) { latVal = pLat; lngVal = pLng; }
+        }
+
+        var vencimientoStr = '';
+        if (filaDatos[4] instanceof Date) {
+          vencimientoStr = Utilities.formatDate(filaDatos[4], Session.getScriptTimeZone(), 'yyyy-MM-dd');
+        } else if (filaDatos[4]) {
+          vencimientoStr = String(filaDatos[4]);
+        }
+
+        clientesList.push({
+          nombre: filaDatos[0] || '',
+          cedula: cedulaFila,
+          plan: filaDatos[2] || '',
+          estado: filaDatos[3] || '',
+          vencimiento: vencimientoStr,
+          valor: filaDatos[5] || 0,
+          vereda: filaDatos[6] || '',
+          recibo: filaDatos[7] || '',
+          puntoConexion: filaDatos[8] || '',
+          lat: latVal,
+          lng: lngVal
+        });
+      }
+      // Esta Hoja solo gestiona clientes; planes, pagos y equipos
+      // se mantienen únicamente en cada dispositivo por ahora.
+      return respuesta({ ok: true, data: { clientes: clientesList, planes: [], pagos: [], equipos: [] } });
     }
 
     if (payload.action === 'ping') {
@@ -1821,12 +1887,12 @@ function doPost(e) {
       var cedulaBuscar = String(payload.cedula || '').trim();
       var filaBuscar = buscarFilaPorCedula(sheet, cedulaBuscar);
       if (filaBuscar > 0) {
-        var valores = sheet.getRange(filaBuscar, 1, 1, 9).getValues()[0];
+        var valores = sheet.getRange(filaBuscar, 1, 1, 10).getValues()[0];
         return respuesta({
           ok: true, encontrado: true, fila: filaBuscar,
           nombre: valores[0], cedula: valores[1], plan: valores[2], estado: valores[3],
           vencimiento: valores[4], valor: valores[5], vereda: valores[6],
-          recibo: valores[7], puntoConexion: valores[8],
+          recibo: valores[7], puntoConexion: valores[8], coordenadas: valores[9] || '',
           totalFilas: sheet.getLastRow(), nombreHoja: sheet.getName()
         });
       }
@@ -2843,6 +2909,11 @@ function initBigMap(){
         setClientes(list);
         showToast('Ubicación actualizada: '+c.nombre);
         logAccion('Ubicación actualizada', c.nombre + ' (mapa)');
+        if(getSyncUrl() && getSyncAuto()){
+          syncClienteToSheet(list[idx]).then(r=>{
+            if(r && r.ok){ showToast('Coordenadas sincronizadas con la Hoja'); }
+          });
+        }
       }
     });
   });
