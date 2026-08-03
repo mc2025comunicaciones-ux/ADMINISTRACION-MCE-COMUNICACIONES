@@ -712,7 +712,7 @@
         <div class="modal-actions" style="justify-content:flex-start; border-top:none; padding-top:0; margin-top:0;">
           <button class="btn btn-primary" type="button" onclick="guardarConfigSync()">Guardar Configuración</button>
           <button class="btn btn-outline" type="button" onclick="probarConexionSync()">Probar Conexión</button>
-          <button class="btn btn-outline" type="button" onclick="sincronizarTodosClientes()">Sincronizar Todos los Clientes Ahora</button>
+          <button class="btn btn-outline" type="button" onclick="sincronizarTodosClientes()">Sincronizar Todo Ahora (Clientes, Planes, Pagos, Equipos)</button>
           <button class="btn btn-green" type="button" onclick="importarDatosDesdeNube()">Importar / Actualizar Datos en Este Dispositivo</button>
         </div>
         <div class="coord-display" id="syncStatus" style="margin-top:16px; display:none;"></div>
@@ -1559,7 +1559,9 @@ async function syncClienteToSheet(cliente){
       vereda: cliente.vereda || '',
       puntoConexion: cliente.puntoConexion || buscarPuntoConexion(cliente.id),
       lat: (cliente.lat!=null && cliente.lat!=='') ? cliente.lat : '',
-      lng: (cliente.lng!=null && cliente.lng!=='') ? cliente.lng : ''
+      lng: (cliente.lng!=null && cliente.lng!=='') ? cliente.lng : '',
+      telefono: cliente.telefono || '',
+      whatsapp: cliente.whatsapp || ''
     }
   };
   try{
@@ -1685,6 +1687,10 @@ async function importarDatosDesdeNube(){
         local.fechaVencimiento = rc.vencimiento || local.fechaVencimiento;
         local.precio = rc.valor || local.precio;
         local.puntoConexion = rc.puntoConexion || local.puntoConexion;
+        // El teléfono y WhatsApp solo se sobreescriben si la Hoja trae
+        // un valor no vacío, para no borrar datos que solo existan localmente.
+        if (rc.telefono) local.telefono = rc.telefono;
+        if (rc.whatsapp) local.whatsapp = rc.whatsapp;
         // Solo se reemplazan las coordenadas si la Hoja trae unas válidas,
         // así no se borra una ubicación marcada localmente si en la Hoja
         // ese cliente todavía no tiene columna J llena.
@@ -1693,7 +1699,7 @@ async function importarDatosDesdeNube(){
         local = {
           id: 'cli_' + cedulaKey,
           nombre: rc.nombre || '', cedula: rc.cedula || '', vereda: rc.vereda || '',
-          telefono: '', whatsapp: '', estado: mapEstadoDesdeHoja(rc.estado) || 'activo',
+          telefono: rc.telefono || '', whatsapp: rc.whatsapp || '', estado: mapEstadoDesdeHoja(rc.estado) || 'activo',
           corte: 1, fechaVencimiento: rc.vencimiento || '',
           planId: planCoincidente ? planCoincidente.id : null,
           planNombre: rc.plan || 'Sin plan', planVelocidad: planCoincidente ? planCoincidente.velocidad : 0,
@@ -1763,18 +1769,43 @@ function mapEstadoDesdeHoja(estadoTexto){
 async function sincronizarTodosClientes(){
   const url = getSyncUrl();
   if(!url){ showToast('Primero configura y guarda la URL del Web App'); return; }
+
   const clientes = getClientes();
-  if(clientes.length===0){ showToast('No hay clientes para sincronizar'); return; }
-  mostrarEstadoSync('Sincronizando 0 / ' + clientes.length + '...', true);
-  let ok = 0, fail = 0;
+  const planes = getPlanes();
+  const pagos = getPagos();
+  const equipos = getEquipos();
+  const total = clientes.length + planes.length + pagos.length + equipos.length;
+  if(total===0){ showToast('No hay datos para sincronizar'); return; }
+
+  let hecho = 0, ok = 0, fail = 0;
+  mostrarEstadoSync(`Sincronizando 0 / ${total}...`, true);
+
   for(let i=0; i<clientes.length; i++){
     const r = await syncClienteToSheet(clientes[i]);
     if(r && r.ok) ok++; else fail++;
-    mostrarEstadoSync('Sincronizando ' + (i+1) + ' / ' + clientes.length + '...', true);
+    hecho++; mostrarEstadoSync(`Sincronizando ${hecho} / ${total}...`, true);
   }
-  mostrarEstadoSync(`Listo: ${ok} cliente(s) sincronizados` + (fail? `, ${fail} con error` : ''), fail===0);
+  for(let i=0; i<planes.length; i++){
+    const r = await syncPlanToSheet(planes[i]);
+    if(r && r.ok) ok++; else fail++;
+    hecho++; mostrarEstadoSync(`Sincronizando ${hecho} / ${total}...`, true);
+  }
+  for(let i=0; i<pagos.length; i++){
+    const cli = clientes.find(c=>c.id===pagos[i].clienteId);
+    if(!cli) { hecho++; continue; }
+    const r = await syncPagoToSheet(cli, pagos[i]);
+    if(r && r.ok) ok++; else fail++;
+    hecho++; mostrarEstadoSync(`Sincronizando ${hecho} / ${total}...`, true);
+  }
+  for(let i=0; i<equipos.length; i++){
+    const r = await syncEquipoToSheet(equipos[i]);
+    if(r && r.ok) ok++; else fail++;
+    hecho++; mostrarEstadoSync(`Sincronizando ${hecho} / ${total}...`, true);
+  }
+
+  mostrarEstadoSync(`Listo: ${ok} registro(s) sincronizados` + (fail? `, ${fail} con error` : ''), fail===0);
   showToast('Sincronización masiva completada');
-  logAccion('Sincronización masiva', ok + ' clientes sincronizados, ' + fail + ' con error');
+  logAccion('Sincronización masiva', `${ok} registros sincronizados (clientes, planes, pagos, equipos), ${fail} con error`);
 }
 
 function descargarCodigoAppsScript(){
@@ -1824,11 +1855,16 @@ function doPost(e) {
         // así no se borra una ubicación ya guardada cuando se sincroniza
         // un cliente desde un dispositivo que todavía no tiene coordenadas.
         if (coordsStr) { sheet.getRange(fila, 10).setValue(coordsStr); }
+        // Columnas K y L: teléfono y WhatsApp (solo si llegó algo, mismo
+        // criterio que las coordenadas: no borrar lo ya guardado).
+        if (d.telefono) { sheet.getRange(fila, 11).setValue(d.telefono); }
+        if (d.whatsapp) { sheet.getRange(fila, 12).setValue(d.whatsapp); }
       } else {
         var filaNueva = sheet.getLastRow() + 1;
         sheet.appendRow([
           d.nombre || '', cedula, d.plan || '', d.estado || '',
-          '', '', d.vereda || '', '', d.puntoConexion || '', coordsStr
+          '', '', d.vereda || '', '', d.puntoConexion || '', coordsStr,
+          d.telefono || '', d.whatsapp || ''
         ]);
         if (fechaObj) { sheet.getRange(filaNueva, 5).setNumberFormat('d/MM/yyyy').setValue(fechaObj); }
         sheet.getRange(filaNueva, 6).setNumberFormat('"$"#,##0').setValue(valorNum);
@@ -1901,7 +1937,9 @@ function doPost(e) {
           recibo: filaDatos[7] || '',
           puntoConexion: filaDatos[8] || '',
           lat: latVal,
-          lng: lngVal
+          lng: lngVal,
+          telefono: filaDatos[10] || '',
+          whatsapp: filaDatos[11] || ''
         });
       }
 
@@ -1955,12 +1993,13 @@ function doPost(e) {
       var cedulaBuscar = String(payload.cedula || '').trim();
       var filaBuscar = buscarFilaPorCedula(sheet, cedulaBuscar);
       if (filaBuscar > 0) {
-        var valores = sheet.getRange(filaBuscar, 1, 1, 10).getValues()[0];
+        var valores = sheet.getRange(filaBuscar, 1, 1, 12).getValues()[0];
         return respuesta({
           ok: true, encontrado: true, fila: filaBuscar,
           nombre: valores[0], cedula: valores[1], plan: valores[2], estado: valores[3],
           vencimiento: valores[4], valor: valores[5], vereda: valores[6],
           recibo: valores[7], puntoConexion: valores[8], coordenadas: valores[9] || '',
+          telefono: valores[10] || '', whatsapp: valores[11] || '',
           totalFilas: sheet.getLastRow(), nombreHoja: sheet.getName()
         });
       }
