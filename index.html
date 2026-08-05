@@ -1488,7 +1488,8 @@ async function probarConexionSync(){
     });
     const data2 = await res2.json();
     if(data2 && data2.ok){
-      mostrarEstadoSync('✔ Conexión completa exitosa. Lectura y envío de datos funcionando correctamente.', true);
+      const versionRecibida = data2.version || '(versión antigua, sin marca — DEBES reimplementar)';
+      mostrarEstadoSync('✔ Conexión completa exitosa. Versión del script en la Hoja: ' + versionRecibida, true);
     } else {
       mostrarEstadoSync('La lectura funciona pero el envío de datos falló: ' + (data2.error||'respuesta inesperada') + '. Vuelve a descargar el código actualizado y vuelve a implementarlo.', false);
     }
@@ -1986,7 +1987,7 @@ function doPost(e) {
     }
 
     if (payload.action === 'ping') {
-      return respuesta({ ok: true, mensaje: 'pong' });
+      return respuesta({ ok: true, mensaje: 'pong', version: VERSION_SCRIPT });
     }
 
     if (payload.action === 'buscarCliente') {
@@ -2044,8 +2045,10 @@ function doPost(e) {
   }
 }
 
+var VERSION_SCRIPT = 'v4-2026-08-04-coords-telefono-whatsapp-planes-pagos-equipos';
+
 function doGet(e) {
-  return respuesta({ ok: true, mensaje: 'MCE Sync API activa' });
+  return respuesta({ ok: true, mensaje: 'MCE Sync API activa', version: VERSION_SCRIPT });
 }
 
 function limpiarCedula(c) {
