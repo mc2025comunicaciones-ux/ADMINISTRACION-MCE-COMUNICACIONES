@@ -678,7 +678,20 @@
           </div>
           <div class="form-field full">
             <label>Public Key del VPS</label>
-            <input type="text" id="hubPubKey" class="mono" placeholder="Se obtiene con: cat /etc/wireguard/vps_public.key">
+            <input type="text" id="hubPubKey" class="mono" readonly placeholder="Se genera con el botón de abajo">
+          </div>
+          <div class="form-field full">
+            <label>Private Key del VPS <span style="color:var(--danger); font-weight:400;">(secreta — solo va dentro del wg0.conf del propio VPS)</span></label>
+            <div style="display:flex; gap:8px;">
+              <input type="text" id="hubPrivKey" class="mono" readonly style="flex:1;" placeholder="Se genera con el botón de abajo">
+              <button type="button" class="icon-btn" title="Copiar" onclick="copiarValorInput('hubPrivKey')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="form-field full">
+            <button type="button" class="btn btn-outline btn-small" onclick="generarLlavesVps()">Generar llaves nuevas para el VPS</button>
+            <span style="font-size:11.5px; color:var(--text-muted); margin-left:10px;">Genera las dos llaves aquí mismo — ya no hace falta correr <span class="mono">wg genkey</span> en el servidor.</span>
           </div>
         </div>
         <div class="modal-actions" style="justify-content:flex-start; border-top:none; padding-top:0; margin-top:0;">
@@ -3474,8 +3487,8 @@ document.getElementById('formEquipo').addEventListener('submit', function(e){
 const DB_KEY_WG_HUB = 'mce_wg_hub';
 const DB_KEY_WG_NODOS = 'mce_wg_nodos';
 function getHub(){
-  try{ return JSON.parse(localStorage.getItem(DB_KEY_WG_HUB) || 'null') || {ipPublica:'', puerto:'13231', red:'10.90.90.0/24', pubKey:''}; }
-  catch(e){ return {ipPublica:'', puerto:'13231', red:'10.90.90.0/24', pubKey:''}; }
+  try{ return JSON.parse(localStorage.getItem(DB_KEY_WG_HUB) || 'null') || {ipPublica:'', puerto:'13231', red:'10.90.90.0/24', pubKey:'', privKey:''}; }
+  catch(e){ return {ipPublica:'', puerto:'13231', red:'10.90.90.0/24', pubKey:'', privKey:''}; }
 }
 function setHub(h){ localStorage.setItem(DB_KEY_WG_HUB, JSON.stringify(h)); }
 function getNodos(){ try{ return JSON.parse(localStorage.getItem(DB_KEY_WG_NODOS) || '[]'); }catch(e){ return []; } }
@@ -3534,6 +3547,30 @@ function cargarHubUI(){
   document.getElementById('hubPuerto').value = h.puerto || '13231';
   document.getElementById('hubRed').value = h.red || '10.90.90.0/24';
   document.getElementById('hubPubKey').value = h.pubKey || '';
+  document.getElementById('hubPrivKey').value = h.privKey || '';
+}
+function generarLlavesVps(){
+  const perm = permTuneles();
+  if(!perm.crear && !perm.editar){ showToast('No tienes permiso para configurar el servidor central'); return; }
+  if(document.getElementById('hubPubKey').value.trim()){
+    if(!confirm('Ya hay llaves guardadas. Si las reemplazas, tendrás que volver a pegar el nuevo wg0.conf en el VPS y volver a generar el peer en cada Mikrotik/dispositivo ya vinculado. ¿Continuar?')) return;
+  }
+  const kp = nacl.box.keyPair();
+  document.getElementById('hubPrivKey').value = bytesToBase64(kp.secretKey);
+  document.getElementById('hubPubKey').value = bytesToBase64(kp.publicKey);
+  showToast('Llaves generadas — dale a "Guardar Servidor Central" para conservarlas');
+}
+function copiarValorInput(elId){
+  const el = document.getElementById(elId);
+  if(!el.value){ showToast('No hay nada que copiar todavía'); return; }
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(el.value).then(()=>showToast('Copiado al portapapeles')).catch(()=>showToast('No se pudo copiar, selecciona y copia manualmente'));
+  } else {
+    el.removeAttribute('readonly');
+    el.select();
+    try{ document.execCommand('copy'); showToast('Copiado al portapapeles'); }catch(e){ showToast('No se pudo copiar, selecciona y copia manualmente'); }
+    el.setAttribute('readonly','');
+  }
 }
 function guardarHub(){
   const perm = permTuneles();
@@ -3542,9 +3579,11 @@ function guardarHub(){
   const puerto = document.getElementById('hubPuerto').value.trim();
   const red = document.getElementById('hubRed').value.trim();
   const pubKey = document.getElementById('hubPubKey').value.trim();
+  const privKey = document.getElementById('hubPrivKey').value.trim();
   if(!ipPublica || !puerto || !red){ showToast('Completa IP pública, puerto y red del túnel'); return; }
   if(!parseCidrBase(red)){ showToast('La red del túnel no es válida, usa algo como 10.90.90.0/24'); return; }
-  setHub({ipPublica, puerto, red, pubKey});
+  if(!pubKey || !privKey){ showToast('Genera las llaves del VPS primero con el botón de arriba'); return; }
+  setHub({ipPublica, puerto, red, pubKey, privKey});
   showToast('Servidor Central guardado');
   logAccion('Servidor Central WireGuard guardado', ipPublica+':'+puerto);
   renderNodosTable();
@@ -3761,7 +3800,7 @@ AllowedIPs = ${allowed}`;
   return `[Interface]
 Address = ${ipVps}/${prefijo}
 ListenPort = ${h.puerto}
-PrivateKey = <TU_PRIVATE_KEY_DEL_VPS>   # cat /etc/wireguard/vps_private.key
+PrivateKey = ${h.privKey || '<TU_PRIVATE_KEY_DEL_VPS>'}
 PostUp = iptables -A FORWARD -i wg0 -j ACCEPT; iptables -A FORWARD -o wg0 -j ACCEPT
 PostDown = iptables -D FORWARD -i wg0 -j ACCEPT; iptables -D FORWARD -o wg0 -j ACCEPT
 
