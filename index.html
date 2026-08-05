@@ -11,6 +11,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tweetnacl/1.0.3/nacl.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
   :root{
     --bg-deep:#060a1f; --bg-panel:#0a0f2b; --bg-sidebar-1:#080c24; --bg-sidebar-2:#050814;
@@ -225,6 +227,18 @@
   .form-field input:focus, .form-field select:focus{ border-color:var(--accent-light); background:rgba(255,255,255,0.06);}
   .form-field select option{ background:#0a0f2b; }
   .form-field input:read-only{ opacity:.75; }
+  .form-field textarea{
+    background:rgba(255,255,255,0.04); border:1px solid var(--border); border-radius:9px;
+    padding:10px 12px; color:var(--text-primary); font-size:13px; font-family:'Inter',sans-serif; outline:none; resize:vertical;
+  }
+  .form-field textarea:focus{ border-color:var(--accent-light); background:rgba(255,255,255,0.06);}
+  .code-block{
+    background:#050814; border:1px solid var(--border-soft); border-radius:10px; padding:14px 16px;
+    font-family:'JetBrains Mono',monospace; font-size:12px; line-height:1.7; color:#a9e6a9;
+    white-space:pre-wrap; word-break:break-word; max-height:280px; overflow-y:auto;
+  }
+  .tunel-side-title{ display:flex; align-items:center; justify-content:space-between; margin:18px 0 8px; }
+  .tunel-side-title h3{ font-family:'Oswald',sans-serif; font-size:13px; letter-spacing:0.6px; text-transform:uppercase; color:var(--accent-cyan); }
   .coord-display{ display:flex; align-items:center; gap:8px; font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--accent-cyan); background:rgba(56,189,248,0.08); border:1px solid rgba(56,189,248,0.25); padding:9px 12px; border-radius:9px; }
   .mini-map{ height:220px; border-radius:10px; overflow:hidden; border:1px solid var(--border); margin-top:6px;}
   .map-actions{ display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; }
@@ -375,6 +389,10 @@
     <button type="button" class="navlink" data-view="instalaciones">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/><circle cx="7" cy="7" r=".6" fill="currentColor"/><circle cx="7" cy="17" r=".6" fill="currentColor"/></svg>
       Instalaciones
+    </button>
+    <button type="button" class="navlink" data-view="tuneles">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M16 3h3a2 2 0 0 1 2 2v3"/><path d="M8 21H5a2 2 0 0 1-2-2v-3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/><path d="M7 12h10"/><circle cx="7" cy="12" r="1.6" fill="currentColor"/><circle cx="17" cy="12" r="1.6" fill="currentColor"/></svg>
+      Red WireGuard
     </button>
     <button type="button" class="navlink" data-view="logs">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.2 3.2"/></svg>
@@ -636,10 +654,79 @@
       </div>
     </section>
 
+    <!-- ===== VISTA RED WIREGUARD (HUB + MIKROTIK + DISPOSITIVOS) ===== -->
+    <section class="view" id="view-tuneles">
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Servidor Central WireGuard (VPS)</h2>
+            <div class="panel-sub">El punto de encuentro al que se conectan todas tus Mikrotik y dispositivos</div>
+          </div>
+        </div>
+        <div class="form-grid" style="margin-bottom:18px;">
+          <div class="form-field">
+            <label>IP pública del VPS</label>
+            <input type="text" id="hubIpPublica" placeholder="Ej: 217.71.200.105">
+          </div>
+          <div class="form-field">
+            <label>Puerto WireGuard</label>
+            <input type="number" id="hubPuerto" placeholder="Ej: 13231">
+          </div>
+          <div class="form-field">
+            <label>Red interna del túnel (CIDR)</label>
+            <input type="text" id="hubRed" placeholder="Ej: 10.90.90.0/24">
+          </div>
+          <div class="form-field full">
+            <label>Public Key del VPS</label>
+            <input type="text" id="hubPubKey" class="mono" placeholder="Se obtiene con: cat /etc/wireguard/vps_public.key">
+          </div>
+        </div>
+        <div class="modal-actions" style="justify-content:flex-start; border-top:none; padding-top:0; margin-top:0;">
+          <button class="btn btn-primary" type="button" onclick="guardarHub()">Guardar Servidor Central</button>
+          <button class="btn btn-outline" type="button" onclick="verComandosVps()">Ver / Actualizar Configuración del VPS</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Mikrotik y Dispositivos Vinculados</h2>
+            <div class="panel-sub">Cada uno se conecta al servidor central de arriba con su propia llave</div>
+          </div>
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <button class="btn btn-outline" type="button" id="btnNuevoNodoMikrotik" onclick="openNodoModal('mikrotik')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>
+              Vincular Mikrotik
+            </button>
+            <button class="btn btn-primary" type="button" id="btnNuevoNodoDispositivo" onclick="openNodoModal('dispositivo')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>
+              Vincular Dispositivo (Celular/PC)
+            </button>
+          </div>
+        </div>
+        <div class="coord-display" style="margin-bottom:18px; color:var(--accent-cyan); align-items:flex-start; line-height:1.6;">
+          El panel no se conecta en vivo a nada — genera el código para pegar en cada Mikrotik y el archivo/QR para cada dispositivo. Tú ejecutas el código una vez en cada equipo.
+        </div>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead>
+              <tr><th>Nombre</th><th>Tipo</th><th>IP del túnel</th><th>Red LAN</th><th>Estado</th><th></th></tr>
+            </thead>
+            <tbody id="tablaNodos"></tbody>
+          </table>
+          <div class="empty-state" id="nodosEmpty" style="display:none;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M16 3h3a2 2 0 0 1 2 2v3"/><path d="M8 21H5a2 2 0 0 1-2-2v-3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/><path d="M7 12h10"/></svg>
+            <p>No hay Mikrotik ni dispositivos vinculados todavía. Primero guarda el Servidor Central de arriba, luego agrega uno.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- ===== VISTA LOGS ===== -->
     <section class="view" id="view-logs">
       <div class="panel">
         <div class="panel-head">
+
           <div>
             <h2>Registro de Actividad</h2>
             <div class="panel-sub">Últimos 50 movimientos del sistema — los más antiguos se eliminan automáticamente</div>
@@ -915,6 +1002,15 @@
           </div>
         </div>
         <div class="form-field full">
+          <label style="font-size:12.5px; color:var(--text-primary); margin-bottom:2px;">Red WireGuard</label>
+          <div style="display:flex; gap:16px; flex-wrap:wrap; font-size:12.5px; color:var(--text-muted);">
+            <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" id="pTunelVer"> Ver</label>
+            <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" id="pTunelCrear"> Crear</label>
+            <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" id="pTunelEditar"> Editar</label>
+            <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" id="pTunelEliminar"> Eliminar</label>
+          </div>
+        </div>
+        <div class="form-field full">
           <label style="font-size:12.5px; color:var(--text-primary); margin-bottom:2px;">Otros módulos</label>
           <div style="display:flex; gap:16px; flex-wrap:wrap; font-size:12.5px; color:var(--text-muted);">
             <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" id="pPagos"> Pagos</label>
@@ -1015,6 +1111,106 @@
         <button type="submit" class="btn btn-primary">Guardar Equipo</button>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- ================= MODAL NODO (MIKROTIK / DISPOSITIVO) ================= -->
+<div class="modal-overlay" id="modalNodo">
+  <div class="modal">
+    <div class="modal-title" id="nodoModalTitle">Vincular Mikrotik</div>
+    <div class="modal-sub" id="nodoModalSub">Se conectará al Servidor Central de arriba. La IP interna se asigna sola.</div>
+    <form id="formNodo">
+      <input type="hidden" id="nodoId">
+      <input type="hidden" id="nodoTipo">
+      <div class="form-grid">
+        <div class="form-field full">
+          <label id="nodoNombreLabel">Nombre del Mikrotik</label>
+          <input type="text" id="nNombre" required placeholder="Ej: Router-Sede-Pedregal">
+        </div>
+        <div class="form-field full" id="wrapNodoLan">
+          <label>Red LAN detrás de este Mikrotik (opcional)</label>
+          <input type="text" id="nLan" placeholder="Ej: 192.168.88.0/24">
+        </div>
+        <div class="form-field full" id="wrapNodoPubKeyMikrotik">
+          <label>Public Key (opcional, se llena después de ejecutar el código)</label>
+          <input type="text" id="nPubKey" class="mono" placeholder="Se obtiene con /interface wireguard print">
+        </div>
+        <div class="form-field">
+          <label>Estado</label>
+          <select id="nEstado">
+            <option value="pendiente">Pendiente de configurar</option>
+            <option value="activo">Activo</option>
+            <option value="caido">Caído / con problema</option>
+          </select>
+        </div>
+        <div class="form-field full">
+          <label>Notas (opcional)</label>
+          <textarea id="nNotas" rows="2" placeholder="Ej: Torre principal, celular del técnico..."></textarea>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" onclick="closeModal('modalNodo')">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Guardar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ================= MODAL CONFIGURACIÓN DEL NODO (CÓDIGO / QR) ================= -->
+<div class="modal-overlay" id="modalNodoConfig">
+  <div class="modal" style="max-width:640px;">
+    <div class="modal-title">Configuración — <span id="nodoConfigNombre"></span></div>
+    <div class="modal-sub" id="nodoConfigSub"></div>
+
+    <div id="nodoConfigMikrotikBox">
+      <div class="tunel-side-title">
+        <h3>Código para pegar en Winbox → Terminal</h3>
+        <button class="btn btn-outline btn-small" type="button" onclick="copiarTexto('nodoConfigScript')">Copiar</button>
+      </div>
+      <div class="code-block mono" id="nodoConfigScript"></div>
+    </div>
+
+    <div id="nodoConfigDispositivoBox" style="display:none;">
+      <div class="tunel-side-title">
+        <h3>Escanea este código QR con la app de WireGuard</h3>
+      </div>
+      <div id="nodoConfigQR" style="display:flex; justify-content:center; padding:16px; background:#fff; border-radius:10px; margin-bottom:14px;"></div>
+      <div class="coord-display" style="margin-bottom:14px; color:var(--text-muted); align-items:flex-start; line-height:1.6;">
+        En el celular: instala la app "WireGuard" (Play Store / App Store) → botón "+" → "Escanear desde código QR". En PC/Windows: instala WireGuard desde wireguard.com/install → "Import tunnel(s) from file" con el archivo descargado abajo.
+      </div>
+      <div class="tunel-side-title">
+        <h3>Archivo de configuración (.conf)</h3>
+        <button class="btn btn-outline btn-small" type="button" onclick="descargarConfDispositivo()">Descargar .conf</button>
+      </div>
+      <div class="code-block mono" id="nodoConfigTexto"></div>
+    </div>
+
+    <div class="coord-display" style="margin-top:16px; color:var(--warning); background:rgba(245,166,35,0.1); border-color:rgba(245,166,35,0.3); align-items:flex-start; line-height:1.6;">
+      Después de vincular este equipo/dispositivo, ve a "Ver / Actualizar Configuración del VPS" arriba y agrega su bloque de peer en el servidor — si no, el VPS no lo va a reconocer.
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-outline" type="button" onclick="closeModal('modalNodoConfig')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= MODAL CONFIGURACIÓN DEL VPS (HUB) ================= -->
+<div class="modal-overlay" id="modalVpsConfig">
+  <div class="modal" style="max-width:720px;">
+    <div class="modal-title">Configuración del Servidor Central (VPS)</div>
+    <div class="modal-sub">Pega esto en <span class="mono">/etc/wireguard/wg0.conf</span> por SSH, y luego <span class="mono">wg-quick down wg0 && wg-quick up wg0</span> para aplicar. Incluye automáticamente a todos los Mikrotik y dispositivos vinculados con Public Key guardada.</div>
+    <div class="tunel-side-title">
+      <h3>wg0.conf</h3>
+      <button class="btn btn-outline btn-small" type="button" onclick="copiarTexto('vpsConfigScript')">Copiar</button>
+    </div>
+    <div class="code-block mono" id="vpsConfigScript"></div>
+    <div class="coord-display" style="margin-top:16px; color:var(--text-muted); align-items:flex-start; line-height:1.6;">
+      Los equipos sin Public Key guardada todavía no aparecen aquí — primero ejecuta su código/config, copia la llave pública generada, guárdala en el panel (botón Editar) y vuelve a abrir esta ventana.
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" type="button" onclick="closeModal('modalVpsConfig')">Cerrar</button>
+    </div>
   </div>
 </div>
 
@@ -1150,17 +1346,20 @@ const DB_KEY_CURRENT_USER = 'mce_current_user';
 const PERMISOS_TOTAL = {
   clientes:{ver:true, crear:true, editar:true, eliminar:true},
   instalaciones:{ver:true, crear:true, editar:true, eliminar:true},
+  tuneles:{ver:true, crear:true, editar:true, eliminar:true},
   pagos:true, planes:true, mapa:true, logs:true
 };
 const PRESETS_USUARIO = {
   tecnico: {
     clientes:{ver:true, crear:true, editar:false, eliminar:false},
     instalaciones:{ver:true, crear:true, editar:false, eliminar:false},
+    tuneles:{ver:true, crear:false, editar:false, eliminar:false},
     pagos:false, planes:false, mapa:false, logs:false
   },
   cobrador: {
     clientes:{ver:true, crear:false, editar:false, eliminar:false},
     instalaciones:{ver:false, crear:false, editar:false, eliminar:false},
+    tuneles:{ver:false, crear:false, editar:false, eliminar:false},
     pagos:true, planes:false, mapa:true, logs:false
   },
   total: PERMISOS_TOTAL
@@ -1284,6 +1483,10 @@ function aplicarPresetUsuario(preset){
   document.getElementById('pInstCrear').checked = base.instalaciones.crear;
   document.getElementById('pInstEditar').checked = base.instalaciones.editar;
   document.getElementById('pInstEliminar').checked = base.instalaciones.eliminar;
+  document.getElementById('pTunelVer').checked = base.tuneles.ver;
+  document.getElementById('pTunelCrear').checked = base.tuneles.crear;
+  document.getElementById('pTunelEditar').checked = base.tuneles.editar;
+  document.getElementById('pTunelEliminar').checked = base.tuneles.eliminar;
   document.getElementById('pPagos').checked = !!base.pagos;
   document.getElementById('pPlanes').checked = !!base.planes;
   document.getElementById('pMapa').checked = !!base.mapa;
@@ -1303,6 +1506,12 @@ function leerPermisosFormUsuario(){
       crear: document.getElementById('pInstCrear').checked,
       editar: document.getElementById('pInstEditar').checked,
       eliminar: document.getElementById('pInstEliminar').checked,
+    },
+    tuneles:{
+      ver: document.getElementById('pTunelVer').checked,
+      crear: document.getElementById('pTunelCrear').checked,
+      editar: document.getElementById('pTunelEditar').checked,
+      eliminar: document.getElementById('pTunelEliminar').checked,
     },
     pagos: document.getElementById('pPagos').checked,
     planes: document.getElementById('pPlanes').checked,
@@ -1326,6 +1535,13 @@ function resumenPermisos(permisos){
     if(permisos.instalaciones.editar) acciones.push('editar');
     if(permisos.instalaciones.eliminar) acciones.push('eliminar');
     partes.push('Instalaciones' + (acciones.length ? ' ('+acciones.join(', ')+')' : ' (solo ver)'));
+  }
+  if(permisos.tuneles && permisos.tuneles.ver){
+    let acciones = [];
+    if(permisos.tuneles.crear) acciones.push('crear');
+    if(permisos.tuneles.editar) acciones.push('editar');
+    if(permisos.tuneles.eliminar) acciones.push('eliminar');
+    partes.push('Red WireGuard' + (acciones.length ? ' ('+acciones.join(', ')+')' : ' (solo ver)'));
   }
   if(permisos.pagos) partes.push('Pagos');
   if(permisos.planes) partes.push('Planes');
@@ -2459,6 +2675,7 @@ const titles = {
   pagos:['Pagos','Registra pagos, genera recibos y controla la cartera'],
   mapa:['Mapa de Clientes','Visualiza y reubica a tus clientes geográficamente'],
   instalaciones:['Instalaciones','Inventario de equipos de red en campo'],
+  tuneles:['Red WireGuard','Vincula tus Mikrotik y dispositivos a través de tu servidor central'],
   logs:['Logs','Historial de actividad del sistema'],
   usuarios:['Usuarios y Permisos','Crea usuarios adicionales y define su acceso'],
   configuracion:['Sincronización','Conecta este panel con tu página pública de clientes']
@@ -2479,6 +2696,7 @@ function irAVista(v){
   if(v==='planes'){ renderPlanesTable(); }
   if(v==='pagos'){ renderPagosTable(document.getElementById('buscarPago').value); }
   if(v==='instalaciones'){ renderEquiposTable(); }
+  if(v==='tuneles'){ cargarHubUI(); renderNodosTable(); }
   if(v==='logs'){ renderLogsTable(); }
   if(v==='usuarios'){ renderUsuariosTable(); }
   if(v==='configuracion'){ cargarConfigSyncUI(); }
@@ -3251,6 +3469,360 @@ document.getElementById('formEquipo').addEventListener('submit', function(e){
 
   if(getSyncUrl() && getSyncAuto()){ syncEquipoToSheet(equipo); }
 });
+
+/* ===================== RED WIREGUARD (VPS HUB + MIKROTIK + DISPOSITIVOS) ===================== */
+const DB_KEY_WG_HUB = 'mce_wg_hub';
+const DB_KEY_WG_NODOS = 'mce_wg_nodos';
+function getHub(){
+  try{ return JSON.parse(localStorage.getItem(DB_KEY_WG_HUB) || 'null') || {ipPublica:'', puerto:'13231', red:'10.90.90.0/24', pubKey:''}; }
+  catch(e){ return {ipPublica:'', puerto:'13231', red:'10.90.90.0/24', pubKey:''}; }
+}
+function setHub(h){ localStorage.setItem(DB_KEY_WG_HUB, JSON.stringify(h)); }
+function getNodos(){ try{ return JSON.parse(localStorage.getItem(DB_KEY_WG_NODOS) || '[]'); }catch(e){ return []; } }
+function setNodos(list){ localStorage.setItem(DB_KEY_WG_NODOS, JSON.stringify(list)); }
+
+function permTuneles(){
+  return (getCurrentUser().permisos || PERMISOS_TOTAL).tuneles || PERMISOS_TOTAL.tuneles;
+}
+
+/* ---- Matemática IP básica ---- */
+function ip2int(ip){
+  const p = ip.split('.').map(Number);
+  if(p.length!==4 || p.some(n=>isNaN(n)||n<0||n>255)) return null;
+  return ((p[0]<<24) | (p[1]<<16) | (p[2]<<8) | p[3]) >>> 0;
+}
+function int2ip(n){ return [(n>>>24)&255, (n>>>16)&255, (n>>>8)&255, n&255].join('.'); }
+function parseCidrBase(cidr){
+  if(!cidr || cidr.indexOf('/')===-1) return null;
+  const [ipStr, prefStr] = cidr.trim().split('/');
+  const pref = Number(prefStr);
+  const base = ip2int(ipStr);
+  if(base===null || isNaN(pref) || pref<8 || pref>30) return null;
+  const maskBits = (0xFFFFFFFF << (32-pref)) >>> 0;
+  const network = (base & maskBits) >>> 0;
+  return {network, prefix: pref};
+}
+function ipVpsDesdeHub(){
+  const info = parseCidrBase(getHub().red || '');
+  return info ? int2ip((info.network+1)>>>0) : '';
+}
+function prefijoHub(){
+  const info = parseCidrBase(getHub().red || '');
+  return info ? info.prefix : 24;
+}
+function siguienteIpHub(excluirId){
+  const info = parseCidrBase(getHub().red || '');
+  if(!info) return null;
+  const usadas = new Set(getNodos().filter(n=>n.id!==excluirId).map(n=>n.ip));
+  const totalHosts = Math.pow(2, 32-info.prefix);
+  for(let i=2; i<totalHosts-1; i++){
+    const candidata = int2ip((info.network + i)>>>0);
+    if(!usadas.has(candidata)) return candidata;
+  }
+  return null;
+}
+function bytesToBase64(bytes){
+  let binary = '';
+  for(let i=0;i<bytes.length;i++){ binary += String.fromCharCode(bytes[i]); }
+  return btoa(binary);
+}
+
+/* ---- Servidor Central (Hub) ---- */
+function cargarHubUI(){
+  const h = getHub();
+  document.getElementById('hubIpPublica').value = h.ipPublica || '';
+  document.getElementById('hubPuerto').value = h.puerto || '13231';
+  document.getElementById('hubRed').value = h.red || '10.90.90.0/24';
+  document.getElementById('hubPubKey').value = h.pubKey || '';
+}
+function guardarHub(){
+  const perm = permTuneles();
+  if(!perm.crear && !perm.editar){ showToast('No tienes permiso para configurar el servidor central'); return; }
+  const ipPublica = document.getElementById('hubIpPublica').value.trim();
+  const puerto = document.getElementById('hubPuerto').value.trim();
+  const red = document.getElementById('hubRed').value.trim();
+  const pubKey = document.getElementById('hubPubKey').value.trim();
+  if(!ipPublica || !puerto || !red){ showToast('Completa IP pública, puerto y red del túnel'); return; }
+  if(!parseCidrBase(red)){ showToast('La red del túnel no es válida, usa algo como 10.90.90.0/24'); return; }
+  setHub({ipPublica, puerto, red, pubKey});
+  showToast('Servidor Central guardado');
+  logAccion('Servidor Central WireGuard guardado', ipPublica+':'+puerto);
+  renderNodosTable();
+}
+
+/* ---- Tabla de nodos (Mikrotik + Dispositivos) ---- */
+function badgeEstadoNodo(estado){
+  if(estado==='activo') return '<span class="badge badge-green">● Activo</span>';
+  if(estado==='caido') return '<span class="badge badge-red">● Caído</span>';
+  return '<span class="badge badge-orange">● Pendiente</span>';
+}
+function renderNodosTable(){
+  const nodos = getNodos();
+  const tbody = document.getElementById('tablaNodos');
+  const empty = document.getElementById('nodosEmpty');
+  const perm = permTuneles();
+  if(nodos.length===0){ tbody.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display='none';
+  tbody.innerHTML = nodos.map(n=>{
+    const tipoLabel = n.tipo==='mikrotik' ? 'Mikrotik' : 'Dispositivo';
+    return `
+    <tr>
+      <td class="cell-strong">${n.nombre}</td>
+      <td><span class="badge badge-blue">${tipoLabel}</span></td>
+      <td class="mono cell-muted">${n.ip}</td>
+      <td class="mono cell-muted">${n.lan || '—'}</td>
+      <td>${badgeEstadoNodo(n.estado)}</td>
+      <td>
+        <div class="row-actions">
+          <button class="icon-btn" type="button" onclick="verNodoConfig('${n.id}')" title="Ver código / QR">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 18l6-6-6-6"/><path d="M8 6l-6 6 6 6"/></svg>
+          </button>
+          ${perm.editar ? `<button class="icon-btn" type="button" onclick="editNodo('${n.id}')" title="Editar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+          </button>` : ''}
+          ${perm.eliminar ? `<button class="icon-btn danger" type="button" onclick="deleteNodo('${n.id}')" title="Eliminar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0-1 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 6"/></svg>
+          </button>` : ''}
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+/* ---- Crear / editar nodo ---- */
+function openNodoModal(tipo, id){
+  const perm = permTuneles();
+  if(!id && !perm.crear){ showToast('No tienes permiso para vincular equipos'); return; }
+  const h = getHub();
+  if(!id && (!h.ipPublica || !h.puerto || !h.red)){ showToast('Primero guarda los datos del Servidor Central (IP pública, puerto y red)'); return; }
+
+  document.getElementById('formNodo').reset();
+  document.getElementById('nodoId').value = '';
+  document.getElementById('nodoTipo').value = tipo;
+  document.getElementById('nEstado').value = 'pendiente';
+
+  const esMikrotik = tipo === 'mikrotik';
+  document.getElementById('nodoModalTitle').textContent = esMikrotik ? 'Vincular Mikrotik' : 'Vincular Dispositivo (Celular/PC)';
+  document.getElementById('nodoModalSub').textContent = esMikrotik
+    ? 'Se conectará al Servidor Central de arriba. La IP interna se asigna sola.'
+    : 'Se genera una llave y una IP nuevas para este dispositivo, listas para escanear.';
+  document.getElementById('nodoNombreLabel').textContent = esMikrotik ? 'Nombre del Mikrotik' : 'Nombre del dispositivo';
+  document.getElementById('nNombre').placeholder = esMikrotik ? 'Ej: Router-Sede-Pedregal' : 'Ej: Celular de Juan, Laptop Oficina';
+  document.getElementById('wrapNodoLan').style.display = esMikrotik ? '' : 'none';
+  document.getElementById('wrapNodoPubKeyMikrotik').style.display = esMikrotik ? '' : 'none';
+
+  if(id){
+    const n = getNodos().find(x=>x.id===id);
+    if(n){
+      document.getElementById('nodoModalTitle').textContent = 'Editar ' + (n.tipo==='mikrotik' ? 'Mikrotik' : 'Dispositivo');
+      document.getElementById('nodoId').value = n.id;
+      document.getElementById('nodoTipo').value = n.tipo;
+      document.getElementById('nNombre').value = n.nombre;
+      document.getElementById('nLan').value = n.lan || '';
+      document.getElementById('nPubKey').value = n.pubKey || '';
+      document.getElementById('nEstado').value = n.estado || 'pendiente';
+      document.getElementById('nNotas').value = n.notas || '';
+    }
+  }
+  document.getElementById('modalNodo').classList.add('active');
+}
+function editNodo(id){
+  const perm = permTuneles();
+  if(!perm.editar){ showToast('No tienes permiso para editar'); return; }
+  const n = getNodos().find(x=>x.id===id);
+  if(n) openNodoModal(n.tipo, id);
+}
+function deleteNodo(id){
+  const perm = permTuneles();
+  if(!perm.eliminar){ showToast('No tienes permiso para eliminar'); return; }
+  if(!confirm('¿Eliminar este equipo/dispositivo del panel? Esto no borra nada del VPS ni del Mikrotik, solo el registro.')) return;
+  const n = getNodos().find(x=>x.id===id);
+  setNodos(getNodos().filter(x=>x.id!==id));
+  renderNodosTable();
+  showToast('Eliminado del panel');
+  logAccion('Nodo WireGuard eliminado', n ? n.nombre : id);
+}
+
+document.getElementById('formNodo').addEventListener('submit', function(e){
+  e.preventDefault();
+  const idExistente = document.getElementById('nodoId').value;
+  const tipo = document.getElementById('nodoTipo').value;
+  const nombre = document.getElementById('nNombre').value.trim();
+  if(!nombre){ showToast('Escribe un nombre'); return; }
+  const lan = document.getElementById('nLan').value.trim();
+  const estado = document.getElementById('nEstado').value;
+  const notas = document.getElementById('nNotas').value.trim();
+
+  const nodos = getNodos();
+
+  if(idExistente){
+    const idx = nodos.findIndex(x=>x.id===idExistente);
+    if(idx>=0){
+      nodos[idx].nombre = nombre;
+      nodos[idx].lan = tipo==='mikrotik' ? lan : '';
+      nodos[idx].estado = estado;
+      nodos[idx].notas = notas;
+      if(tipo==='mikrotik'){ nodos[idx].pubKey = document.getElementById('nPubKey').value.trim(); }
+      setNodos(nodos);
+      renderNodosTable();
+      closeModal('modalNodo');
+      showToast('Guardado correctamente');
+      logAccion('Nodo WireGuard editado', nombre);
+    }
+    return;
+  }
+
+  const ip = siguienteIpHub();
+  if(!ip){ showToast('No hay más IPs libres en la red del túnel, amplía la red en el Servidor Central (ej. usa /23)'); return; }
+
+  const nodo = { id:'wgn_'+Date.now(), tipo, nombre, ip, lan: tipo==='mikrotik' ? lan : '', estado, notas, pubKey:'', privKey:'' };
+
+  if(tipo==='mikrotik'){
+    nodo.pubKey = document.getElementById('nPubKey').value.trim();
+  } else {
+    const kp = nacl.box.keyPair();
+    nodo.privKey = bytesToBase64(kp.secretKey);
+    nodo.pubKey = bytesToBase64(kp.publicKey);
+  }
+
+  nodos.push(nodo);
+  setNodos(nodos);
+  renderNodosTable();
+  closeModal('modalNodo');
+  showToast(tipo==='mikrotik' ? 'Mikrotik vinculado, revisa su código' : 'Dispositivo vinculado, revisa su QR');
+  logAccion(tipo==='mikrotik' ? 'Mikrotik vinculado a la Red WireGuard' : 'Dispositivo vinculado a la Red WireGuard', nombre + ' (' + ip + ')');
+  verNodoConfig(nodo.id);
+});
+
+/* ---- Generadores de configuración ---- */
+function nombreInterfaz(nombre){
+  return 'wg-' + nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,32) || 'wg-nodo';
+}
+function generarScriptMikrotik(n){
+  const h = getHub();
+  const ifaceName = nombreInterfaz(n.nombre);
+  const ipVps = ipVpsDesdeHub();
+  const prefijo = prefijoHub();
+  const otrasLans = getNodos().filter(x=>x.tipo==='mikrotik' && x.id!==n.id && x.lan).map(x=>x.lan);
+  const allowedRemoto = [h.red].concat(otrasLans).join(',');
+
+  return `# ===== Mikrotik: ${n.nombre} =====
+# Pega esto en Winbox -> New Terminal
+
+/interface wireguard
+add name=${ifaceName} listen-port=${h.puerto} comment="Tunel hacia VPS Relay"
+
+/ip address
+add address=${n.ip}/${prefijo} interface=${ifaceName} comment="Tunel WireGuard - Red MCE"
+
+# Copia la Public Key generada y pegala en el panel (boton "Editar" de este Mikrotik):
+/interface wireguard print
+
+# Con la Public Key del VPS ya guardada en "Servidor Central" arriba, ejecuta:
+/interface wireguard peers
+add interface=${ifaceName} public-key="${h.pubKey || '<PUBLIC-KEY-DEL-VPS>'}" endpoint-address=${h.ipPublica || '<IP-PUBLICA-DEL-VPS>'} endpoint-port=${h.puerto} allowed-address=${allowedRemoto} persistent-keepalive=25s comment="Peer hacia VPS Relay"
+
+# (Opcional) probar conectividad con el VPS:
+/ping ${ipVps} count=4
+
+# NOTA: si mas adelante vinculas otra sede Mikrotik nueva, este Mikrotik necesita
+# conocer su LAN. Vuelve a abrir "Ver codigo" de este Mikrotik y ejecuta:
+# /interface wireguard peers set [find interface=${ifaceName}] allowed-address=<LISTA-ACTUALIZADA>`;
+}
+function generarConfDispositivo(n){
+  const h = getHub();
+  const lans = getNodos().filter(x=>x.tipo==='mikrotik' && x.lan).map(x=>x.lan);
+  const allowed = [h.red].concat(lans).join(', ');
+  return `[Interface]
+PrivateKey = ${n.privKey}
+Address = ${n.ip}/32
+DNS = 1.1.1.1
+
+[Peer]
+PublicKey = ${h.pubKey || '<PUBLIC-KEY-DEL-VPS>'}
+Endpoint = ${h.ipPublica || '<IP-PUBLICA-DEL-VPS>'}:${h.puerto}
+AllowedIPs = ${allowed}
+PersistentKeepalive = 25`;
+}
+function generarConfVps(){
+  const h = getHub();
+  const prefijo = prefijoHub();
+  const ipVps = ipVpsDesdeHub();
+  const nodosConLlave = getNodos().filter(n=>n.pubKey);
+  const peers = nodosConLlave.map(n=>{
+    const allowed = (n.tipo==='mikrotik' && n.lan) ? `${n.ip}/32, ${n.lan}` : `${n.ip}/32`;
+    return `# ${n.nombre} (${n.tipo==='mikrotik' ? 'Mikrotik' : 'Dispositivo'})
+[Peer]
+PublicKey = ${n.pubKey}
+AllowedIPs = ${allowed}`;
+  }).join('\n\n');
+
+  return `[Interface]
+Address = ${ipVps}/${prefijo}
+ListenPort = ${h.puerto}
+PrivateKey = <TU_PRIVATE_KEY_DEL_VPS>   # cat /etc/wireguard/vps_private.key
+PostUp = iptables -A FORWARD -i wg0 -j ACCEPT; iptables -A FORWARD -o wg0 -j ACCEPT
+PostDown = iptables -D FORWARD -i wg0 -j ACCEPT; iptables -D FORWARD -o wg0 -j ACCEPT
+
+${peers || '# Todavia no hay equipos con Public Key guardada'}`;
+}
+
+function verNodoConfig(id){
+  const n = getNodos().find(x=>x.id===id);
+  if(!n) return;
+  document.getElementById('nodoConfigNombre').textContent = n.nombre;
+  const esMikrotik = n.tipo === 'mikrotik';
+  document.getElementById('nodoConfigMikrotikBox').style.display = esMikrotik ? '' : 'none';
+  document.getElementById('nodoConfigDispositivoBox').style.display = esMikrotik ? 'none' : '';
+  if(esMikrotik){
+    document.getElementById('nodoConfigSub').textContent = 'Copia y pega esto en Winbox → New Terminal de "'+n.nombre+'". Cuando obtengas la Public Key, guárdala editando este Mikrotik en el panel.';
+    document.getElementById('nodoConfigScript').textContent = generarScriptMikrotik(n);
+  } else {
+    document.getElementById('nodoConfigSub').textContent = 'Este código y QR incluyen la llave privada del dispositivo — trátalo como una contraseña, no lo compartas por canales públicos.';
+    const texto = generarConfDispositivo(n);
+    document.getElementById('nodoConfigTexto').textContent = texto;
+    const qrBox = document.getElementById('nodoConfigQR');
+    qrBox.innerHTML = '';
+    new QRCode(qrBox, { text: texto, width:220, height:220, colorDark:'#000000', colorLight:'#ffffff', correctLevel: QRCode.CorrectLevel.M });
+    window._confDispositivoActual = texto;
+    window._confDispositivoNombre = n.nombre;
+  }
+  document.getElementById('modalNodoConfig').classList.add('active');
+}
+function descargarConfDispositivo(){
+  if(!window._confDispositivoActual) return;
+  const blob = new Blob([window._confDispositivoActual], {type:'text/plain'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = (window._confDispositivoNombre || 'dispositivo').toLowerCase().replace(/[^a-z0-9]+/g,'-') + '.conf';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+function verComandosVps(){
+  const h = getHub();
+  if(!h.ipPublica || !h.puerto || !h.red){ showToast('Primero guarda los datos del Servidor Central'); return; }
+  document.getElementById('vpsConfigScript').textContent = generarConfVps();
+  document.getElementById('modalVpsConfig').classList.add('active');
+}
+
+function copiarTexto(elId){
+  const el = document.getElementById(elId);
+  const texto = el.textContent;
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(texto).then(()=>showToast('Copiado al portapapeles')).catch(()=>showToast('No se pudo copiar automáticamente, selecciona y copia manualmente'));
+  } else {
+    const range = document.createRange();
+    range.selectNode(el);
+    window.getSelection().removeAllRanges();
+    window.getSelection().addRange(range);
+    try{ document.execCommand('copy'); showToast('Copiado al portapapeles'); }catch(e){ showToast('No se pudo copiar automáticamente, selecciona y copia manualmente'); }
+    window.getSelection().removeAllRanges();
+  }
+}
 
 /* ===================== ESCANEO CON CÁMARA (Serial / MAC) ===================== */
 let scanTargetFieldId = null;
