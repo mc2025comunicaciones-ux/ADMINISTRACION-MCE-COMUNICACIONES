@@ -1888,6 +1888,13 @@ function doPost(e) {
       var dg = payload.data;
       var filaG = buscarFilaPorId(hojaPagos, dg.id);
       var valoresG = [dg.id || '', dg.cedulaCliente || '', dg.nombreCliente || '', dg.periodo || '', dg.fecha || '', Number(dg.valor || 0), dg.autorizadoPor || '', dg.numero || ''];
+      var filaDestinoG = (filaG > 0) ? filaG : (hojaPagos.getLastRow() + 1);
+      // Las columnas "periodo" (D) y "fecha" (E) se fuerzan a texto plano ANTES
+      // de escribir el valor, porque si no, Sheets convierte solo "2026-08" en
+      // una fecha real y luego el comparador de "¿ya pagó?" nunca vuelve a
+      // coincidir (compara texto contra texto, no contra un objeto Fecha).
+      hojaPagos.getRange(filaDestinoG, 4).setNumberFormat('@');
+      hojaPagos.getRange(filaDestinoG, 5).setNumberFormat('@');
       if (filaG > 0) { hojaPagos.getRange(filaG, 1, 1, valoresG.length).setValues([valoresG]); }
       else { hojaPagos.appendRow(valoresG); }
       return respuesta({ ok: true });
@@ -1963,9 +1970,16 @@ function doPost(e) {
           var fg2 = datosPagos[k];
           if (!fg2[0]) continue;
           var fechaPago = fg2[4];
+          // Si alguna fila vieja quedó guardada como fecha real (antes de
+          // forzar texto en upsertPago), se reconstruye "YYYY-MM" a partir
+          // de esa fecha para que la comparación de "¿ya pagó?" funcione.
+          var periodoCelda = fg2[3];
+          var periodoStr = (periodoCelda instanceof Date)
+            ? Utilities.formatDate(periodoCelda, Session.getScriptTimeZone(), 'yyyy-MM')
+            : String(periodoCelda || '');
           pagosList.push({
             id: fg2[0], cedulaCliente: fg2[1] || '', nombreCliente: fg2[2] || '',
-            periodo: fg2[3] || '',
+            periodo: periodoStr,
             fecha: (fechaPago instanceof Date) ? Utilities.formatDate(fechaPago, Session.getScriptTimeZone(), 'yyyy-MM-dd') : (fechaPago || ''),
             valor: Number(fg2[5] || 0), autorizadoPor: fg2[6] || '', numero: fg2[7] || ''
           });
@@ -2045,7 +2059,7 @@ function doPost(e) {
   }
 }
 
-var VERSION_SCRIPT = 'v4-2026-08-04-coords-telefono-whatsapp-planes-pagos-equipos';
+var VERSION_SCRIPT = 'v5-2026-08-04-fix-periodo-pagos-texto';
 
 function doGet(e) {
   return respuesta({ ok: true, mensaje: 'MCE Sync API activa', version: VERSION_SCRIPT });
