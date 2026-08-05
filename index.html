@@ -712,6 +712,7 @@
         <div class="modal-actions" style="justify-content:flex-start; border-top:none; padding-top:0; margin-top:0;">
           <button class="btn btn-primary" type="button" onclick="guardarConfigSync()">Guardar Configuración</button>
           <button class="btn btn-outline" type="button" onclick="probarConexionSync()">Probar Conexión</button>
+          <button class="btn btn-outline" type="button" onclick="diagnosticarPagos()">Diagnóstico: ¿Por qué no llegan los pagos?</button>
           <button class="btn btn-outline" type="button" onclick="sincronizarTodosClientes()">Sincronizar Todo Ahora (Clientes, Planes, Pagos, Equipos)</button>
           <button class="btn btn-green" type="button" onclick="importarDatosDesdeNube()">Importar / Actualizar Datos en Este Dispositivo</button>
         </div>
@@ -1463,6 +1464,37 @@ function mostrarEstadoSync(msg, ok){
   el.textContent = msg;
 }
 
+async function diagnosticarPagos(){
+  const url = getSyncUrl();
+  if(!url){ showToast('Primero configura y guarda la URL del Web App'); return; }
+  mostrarEstadoSync('Consultando estado real de la hoja "Pagos"...', true);
+  try{
+    const res = await fetch(url, {
+      method:'POST',
+      headers:{ 'Content-Type':'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action:'diagnosticoPagos' })
+    });
+    const data = await res.json();
+    if(!data || !data.ok){
+      mostrarEstadoSync('Error consultando diagnóstico: ' + (data && data.error || 'respuesta inesperada. Asegúrate de haber implementado una NUEVA VERSIÓN del script.'), false);
+      return;
+    }
+    if(!data.existePagosSheet){
+      mostrarEstadoSync('❌ ' + data.mensaje, false);
+      return;
+    }
+    let resumen = `✔ La pestaña "Pagos" existe y tiene ${data.totalFilas} fila(s) de datos.`;
+    if(data.totalFilas === 0){
+      resumen += ' Está VACÍA: ningún pago ha llegado nunca a la Hoja. Revisa que "Sincronización automática" esté activada, o usa "Sincronizar Todo Ahora".';
+    } else {
+      resumen += ' Primeras filas: ' + JSON.stringify(data.muestra, null, 0);
+    }
+    mostrarEstadoSync(resumen, data.totalFilas > 0);
+  }catch(err){
+    mostrarEstadoSync('No se pudo conectar para el diagnóstico: ' + err.message, false);
+  }
+}
+
 async function probarConexionSync(){
   const url = getSyncUrl();
   if(!url){ showToast('Primero pega la URL del Web App y guarda'); return; }
@@ -2000,6 +2032,27 @@ function doPost(e) {
       return respuesta({ ok: true, data: { clientes: clientesList, planes: planesList, pagos: pagosList, equipos: equiposList } });
     }
 
+    if (payload.action === 'diagnosticoPagos') {
+      var hojaDiag = ss.getSheetByName('Pagos');
+      if (!hojaDiag) {
+        return respuesta({ ok: true, existePagosSheet: false, mensaje: 'La pestaña "Pagos" todavía no existe en tu Hoja. Eso significa que ningún pago se ha sincronizado nunca con éxito.' });
+      }
+      var datosDiag = hojaDiag.getDataRange().getValues();
+      var totalFilasDiag = datosDiag.length - 1; // sin contar encabezado
+      var muestraDiag = [];
+      for (var d = 1; d < Math.min(datosDiag.length, 4); d++) {
+        var filaD = datosDiag[d];
+        var celdaPeriodo = filaD[3];
+        muestraDiag.push({
+          id: filaD[0], cedulaCliente: filaD[1], nombreCliente: filaD[2],
+          periodoValor: String(celdaPeriodo),
+          periodoEsFecha: (celdaPeriodo instanceof Date),
+          valor: filaD[5]
+        });
+      }
+      return respuesta({ ok: true, existePagosSheet: true, totalFilas: totalFilasDiag, muestra: muestraDiag, nombreHojaClientes: sheet.getName() });
+    }
+
     if (payload.action === 'ping') {
       return respuesta({ ok: true, mensaje: 'pong', version: VERSION_SCRIPT });
     }
@@ -2059,7 +2112,7 @@ function doPost(e) {
   }
 }
 
-var VERSION_SCRIPT = 'v5-2026-08-04-fix-periodo-pagos-texto';
+var VERSION_SCRIPT = 'v6-2026-08-04-diagnostico-pagos';
 
 function doGet(e) {
   return respuesta({ ok: true, mensaje: 'MCE Sync API activa', version: VERSION_SCRIPT });
