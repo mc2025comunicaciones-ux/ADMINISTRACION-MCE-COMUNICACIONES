@@ -2326,6 +2326,17 @@ function periodoTexto(periodo){
   const [y,m] = periodo.split('-');
   return MESES[Number(m)-1] + ' ' + y;
 }
+// Normaliza cualquier variante de "periodo" a "YYYY-MM" exacto: admite
+// "2026-8" (sin cero), "2026-08-01T00:00:00.000Z" (si quedó como fecha
+// completa al ir y volver de Google Sheets), etc. Así la comparación de
+// "¿ya pagó este mes?" no se rompe por diferencias menores de formato.
+function normalizarPeriodo(p){
+  if(!p) return '';
+  const str = String(p).trim();
+  const m = str.match(/(\d{4})[-\/](\d{1,2})/);
+  if(m) return m[1] + '-' + String(m[2]).padStart(2,'0');
+  return str;
+}
 
 /* ===================== FECHA DE CORTE (vencimiento) ===================== */
 const MESES_ABREV = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
@@ -2462,7 +2473,8 @@ function badgeForEstado(estado){
   return '<span class="badge badge-red">● Bloqueado</span>';
 }
 function clienteYaPago(clienteId, periodo){
-  return getPagos().some(p=>p.clienteId===clienteId && p.periodo===periodo);
+  const periodoNorm = normalizarPeriodo(periodo);
+  return getPagos().some(p=>p.clienteId===clienteId && normalizarPeriodo(p.periodo)===periodoNorm);
 }
 
 /* ===================== INICIO / STATS ===================== */
@@ -2471,7 +2483,8 @@ function renderStats(){
   const equipos = getEquipos();
   const pagos = getPagos();
   const periodo = periodoActual();
-  const pagosMes = pagos.filter(p=>p.periodo===periodo);
+  const periodoNorm = normalizarPeriodo(periodo);
+  const pagosMes = pagos.filter(p=>normalizarPeriodo(p.periodo)===periodoNorm);
 
   const activos = clientes.filter(c=>c.estado==='activo');
   const suspendidos = clientes.filter(c=>c.estado==='suspendido');
@@ -2825,10 +2838,11 @@ document.getElementById('formPago').addEventListener('submit', function(e){
 function reiniciarRecaudo(){
   if(!esSuperAdmin()){ showToast('Solo la cuenta administradora puede reiniciar el recaudo'); return; }
   const periodo = periodoActual();
-  const pagosMes = getPagos().filter(p=>p.periodo===periodo);
+  const periodoNorm = normalizarPeriodo(periodo);
+  const pagosMes = getPagos().filter(p=>normalizarPeriodo(p.periodo)===periodoNorm);
   if(pagosMes.length===0){ showToast('No hay pagos registrados este mes para reiniciar'); return; }
   if(!confirm('Esto borrará los ' + pagosMes.length + ' pagos registrados de ' + periodoTexto(periodo) + ' y todos los clientes volverán a aparecer como pendientes. ¿Continuar?')) return;
-  setPagos(getPagos().filter(p=>p.periodo!==periodo));
+  setPagos(getPagos().filter(p=>normalizarPeriodo(p.periodo)!==periodoNorm));
   renderPagosTable(document.getElementById('buscarPago').value);
   renderStats();
   showToast('Recaudo del mes reiniciado');
@@ -2837,7 +2851,8 @@ function reiniciarRecaudo(){
 
 function verReciboExistente(clienteId){
   const periodo = periodoActual();
-  const pago = getPagos().find(p=>p.clienteId===clienteId && p.periodo===periodo);
+  const periodoNorm = normalizarPeriodo(periodo);
+  const pago = getPagos().find(p=>p.clienteId===clienteId && normalizarPeriodo(p.periodo)===periodoNorm);
   const c = getClientes().find(x=>x.id===clienteId);
   if(!pago || !c){ showToast('No se encontró el recibo'); return; }
   mostrarRecibo(c, pago);
