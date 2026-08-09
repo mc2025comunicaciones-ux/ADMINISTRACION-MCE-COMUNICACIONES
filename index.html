@@ -763,7 +763,7 @@
           <button class="btn btn-primary" type="button" onclick="guardarConfigSync()">Guardar Configuración</button>
           <button class="btn btn-outline" type="button" onclick="probarConexionSync()">Probar Conexión</button>
           <button class="btn btn-outline" type="button" onclick="diagnosticarPagos()">Diagnóstico: ¿Por qué no llegan los pagos?</button>
-          <button class="btn btn-outline" type="button" onclick="sincronizarTodosClientes()">Sincronizar Todo Ahora (Clientes, Planes, Pagos, Equipos)</button>
+          <button class="btn btn-outline" type="button" onclick="sincronizarTodosClientes()">Sincronizar Todo Ahora (Clientes, Planes, Pagos, Equipos, Usuarios)</button>
           <button class="btn btn-green" type="button" onclick="importarDatosDesdeNube()">Importar / Actualizar Datos en Este Dispositivo</button>
         </div>
         <div class="coord-display" id="syncStatus" style="margin-top:16px; display:none;"></div>
@@ -1566,6 +1566,15 @@ document.getElementById('formUsuario').addEventListener('submit', function(e){
   closeModal('modalUsuario');
   showToast('Usuario guardado correctamente');
   logAccion(esNuevo ? 'Usuario creado' : 'Usuario editado', usuario.usuario + ' — ' + resumenPermisos(usuario.permisos));
+
+  if(getSyncUrl() && getSyncAuto()){
+    syncUsuarioToSheet(usuario).then(r=>{
+      if(r && r.ok){ showToast('Usuario sincronizado — ya puede iniciar sesión desde otro dispositivo'); }
+      else if(!r || !r.skip){ showToast('El usuario se guardó aquí, pero no se pudo sincronizar (revisa Sincronización). En otros dispositivos no podrá iniciar sesión hasta sincronizar.'); }
+    });
+  } else {
+    showToast('Recuerda: para que este usuario pueda iniciar sesión en otro dispositivo, configura la Sincronización y usa "Sincronizar Todo Ahora"');
+  }
 });
 
 /* ===================== SINCRONIZACIÓN CON GOOGLE SHEETS (página pública de clientes) ===================== */
@@ -1775,6 +1784,22 @@ async function syncPlanToSheet(plan){
   }catch(err){ return { ok:false, error: err.message }; }
 }
 
+/* Envía (crea o actualiza) un usuario adicional (con su clave y permisos) a la
+   Hoja de Google, para que pueda iniciar sesión desde cualquier dispositivo
+   que importe los datos — no solo desde el que lo creó. */
+async function syncUsuarioToSheet(usuario){
+  const url = getSyncUrl();
+  if(!url) return { ok:false, skip:true };
+  const payload = { action:'upsertUsuario', data:{
+    id: usuario.id, nombre: usuario.nombre, usuario: usuario.usuario,
+    password: usuario.password, permisosJSON: JSON.stringify(usuario.permisos)
+  }};
+  try{
+    const res = await fetch(url, { method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' }, body: JSON.stringify(payload) });
+    return await res.json().catch(()=>({ok:true}));
+  }catch(err){ return { ok:false, error: err.message }; }
+}
+
 /* Envía (crea o actualiza) un pago en la Hoja de Google */
 async function syncPagoToSheet(cliente, pago){
   const url = getSyncUrl();
@@ -1824,7 +1849,7 @@ async function importarDatosDesdeNube(){
       mostrarEstadoSync('Error al importar: ' + (resp && resp.error ? resp.error : 'sin respuesta'), false);
       return;
     }
-    const remoto = resp.data || { clientes:[], planes:[], pagos:[], equipos:[] };
+    const remoto = resp.data || { clientes:[], planes:[], pagos:[], equipos:[], usuarios:[] };
 
     // ---- Planes: se fusionan por nombre (no tienen cédula como llave) ----
     const planesLocales = getPlanes();
@@ -1926,10 +1951,31 @@ async function importarDatosDesdeNube(){
     });
     setEquipos(equiposLocales);
 
+    // ---- Usuarios adicionales (con permisos): se fusionan por id. Así el
+    // usuario creado en un dispositivo puede iniciar sesión en cualquier
+    // otro después de importar. Si ya existe localmente, se actualiza con
+    // lo que traiga la Hoja (última versión guardada gana). ----
+    const usuariosLocales = getUsuarios();
+    const mapaUsuariosPorId = {};
+    usuariosLocales.forEach(u=> mapaUsuariosPorId[u.id] = u);
+    (remoto.usuarios||[]).forEach(ru=>{
+      let permisosRemotos = null;
+      try{ permisosRemotos = JSON.parse(ru.permisosJSON || '{}'); }catch(e){ permisosRemotos = {}; }
+      const datosUsuario = { id: ru.id, nombre: ru.nombre || '', usuario: ru.usuario || '', password: ru.password || '', permisos: permisosRemotos };
+      if(mapaUsuariosPorId[ru.id]){
+        Object.assign(mapaUsuariosPorId[ru.id], datosUsuario);
+      } else {
+        usuariosLocales.push(datosUsuario);
+        mapaUsuariosPorId[ru.id] = datosUsuario;
+      }
+    });
+    setUsuarios(usuariosLocales);
+
     // Refresca toda la interfaz con los datos ya combinados
     renderStats(); renderClientesTable(); renderPlanesTable();
     renderPagosTable(document.getElementById('buscarPago').value);
     renderEquiposTable();
+    renderUsuariosTable();
 
     // Si el mapa de clientes ya estaba abierto/inicializado, se refresca
     // para que las coordenadas recién importadas aparezcan de inmediato.
@@ -1937,7 +1983,7 @@ async function importarDatosDesdeNube(){
       try { initBigMap(); } catch(e) {}
     }
 
-    mostrarEstadoSync(`✔ Importado: ${(remoto.clientes||[]).length} clientes, ${(remoto.planes||[]).length} planes, ${(remoto.pagos||[]).length} pagos, ${(remoto.equipos||[]).length} equipos revisados.`, true);
+    mostrarEstadoSync(`✔ Importado: ${(remoto.clientes||[]).length} clientes, ${(remoto.planes||[]).length} planes, ${(remoto.pagos||[]).length} pagos, ${(remoto.equipos||[]).length} equipos, ${(remoto.usuarios||[]).length} usuarios revisados.`, true);
     showToast('Datos importados desde la nube');
     logAccion('Importación desde la nube', 'Clientes/Planes/Pagos/Equipos sincronizados a este dispositivo');
   }catch(err){
@@ -1961,7 +2007,8 @@ async function sincronizarTodosClientes(){
   const planes = getPlanes();
   const pagos = getPagos();
   const equipos = getEquipos();
-  const total = clientes.length + planes.length + pagos.length + equipos.length;
+  const usuarios = getUsuarios();
+  const total = clientes.length + planes.length + pagos.length + equipos.length + usuarios.length;
   if(total===0){ showToast('No hay datos para sincronizar'); return; }
 
   let hecho = 0, ok = 0, fail = 0;
@@ -1989,10 +2036,15 @@ async function sincronizarTodosClientes(){
     if(r && r.ok) ok++; else fail++;
     hecho++; mostrarEstadoSync(`Sincronizando ${hecho} / ${total}...`, true);
   }
+  for(let i=0; i<usuarios.length; i++){
+    const r = await syncUsuarioToSheet(usuarios[i]);
+    if(r && r.ok) ok++; else fail++;
+    hecho++; mostrarEstadoSync(`Sincronizando ${hecho} / ${total}...`, true);
+  }
 
   mostrarEstadoSync(`Listo: ${ok} registro(s) sincronizados` + (fail? `, ${fail} con error` : ''), fail===0);
   showToast('Sincronización masiva completada');
-  logAccion('Sincronización masiva', `${ok} registros sincronizados (clientes, planes, pagos, equipos), ${fail} con error`);
+  logAccion('Sincronización masiva', `${ok} registros sincronizados (clientes, planes, pagos, equipos, usuarios), ${fail} con error`);
 }
 
 function descargarCodigoAppsScript(){
@@ -2098,6 +2150,16 @@ function doPost(e) {
       return respuesta({ ok: true });
     }
 
+    if (payload.action === 'upsertUsuario') {
+      var hojaUsuarios = obtenerHoja(ss, 'Usuarios', ['id','nombre','usuario','password','permisosJSON']);
+      var du = payload.data;
+      var filaU = buscarFilaPorId(hojaUsuarios, du.id);
+      var valoresU = [du.id || '', du.nombre || '', du.usuario || '', du.password || '', du.permisosJSON || '{}'];
+      if (filaU > 0) { hojaUsuarios.getRange(filaU, 1, 1, valoresU.length).setValues([valoresU]); }
+      else { hojaUsuarios.appendRow(valoresU); }
+      return respuesta({ ok: true });
+    }
+
     if (payload.action === 'listarTodo') {
       var datosCompletos = sheet.getDataRange().getValues();
       var clientesList = [];
@@ -2187,7 +2249,18 @@ function doPost(e) {
         }
       }
 
-      return respuesta({ ok: true, data: { clientes: clientesList, planes: planesList, pagos: pagosList, equipos: equiposList } });
+      var usuariosList = [];
+      var hojaUsuariosLeer = ss.getSheetByName('Usuarios');
+      if (hojaUsuariosLeer) {
+        var datosUsuarios = hojaUsuariosLeer.getDataRange().getValues();
+        for (var n = 1; n < datosUsuarios.length; n++) {
+          var fu2 = datosUsuarios[n];
+          if (!fu2[0]) continue;
+          usuariosList.push({ id: fu2[0], nombre: fu2[1] || '', usuario: fu2[2] || '', password: fu2[3] || '', permisosJSON: fu2[4] || '{}' });
+        }
+      }
+
+      return respuesta({ ok: true, data: { clientes: clientesList, planes: planesList, pagos: pagosList, equipos: equiposList, usuarios: usuariosList } });
     }
 
     if (payload.action === 'diagnosticoPagos') {
@@ -2270,7 +2343,7 @@ function doPost(e) {
   }
 }
 
-var VERSION_SCRIPT = 'v8-2026-08-09-envio-whatsapp';
+var VERSION_SCRIPT = 'v9-2026-08-09-sync-usuarios';
 
 function doGet(e) {
   return respuesta({ ok: true, mensaje: 'MCE Sync API activa', version: VERSION_SCRIPT });
@@ -2634,8 +2707,8 @@ const titles = {
   configuracion:['Sincronización','Conecta este panel con tu página pública de clientes']
 };
 function irAVista(v){
-  if(v==='usuarios' && !esSuperAdmin()){ showToast('Solo la cuenta administradora puede gestionar usuarios'); return; }
-  if(v==='configuracion' && !esSuperAdmin()){ showToast('Solo la cuenta administradora puede ver esta sección'); return; }
+  if(v==='usuarios' && !(esSuperAdmin() || permisosActuales().usuarios)){ showToast('No tienes permiso para gestionar usuarios'); return; }
+  if(v==='configuracion' && !(esSuperAdmin() || permisosActuales().configuracion)){ showToast('No tienes permiso para ver Configuración/Sincronización'); return; }
   document.querySelectorAll('.navlink').forEach(l=>l.classList.remove('active'));
   const link = document.querySelector('.navlink[data-view="'+v+'"]');
   if(link) link.classList.add('active');
