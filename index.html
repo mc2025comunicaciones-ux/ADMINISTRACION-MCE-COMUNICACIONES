@@ -1665,7 +1665,14 @@ async function diagnosticarUsuarios(){
     if(data.totalFilas === 0){
       resumen += ' Está VACÍA. Usa "Sincronizar Todo Ahora" para subir los usuarios que ya creaste en este dispositivo.';
     } else {
-      resumen += ' Usuarios en la Hoja: ' + data.muestra.map(u=>u.usuario).join(', ') + '. Si el usuario que buscas SÍ aparece en esta lista, el problema está en el otro dispositivo: entra a su Configuración, confirma que tiene pegada esta misma URL, y usa "Importar / Actualizar Datos en Este Dispositivo".';
+      const detalle = data.muestra.map(u=> u.usuario + (u.tienePermisos ? ' ✔' : ' ⚠SIN PERMISOS')).join(', ');
+      resumen += ' Usuarios en la Hoja: ' + detalle + '.';
+      const sinPermisos = data.muestra.filter(u=>!u.tienePermisos);
+      if(sinPermisos.length > 0){
+        resumen += ' ⚠ ' + sinPermisos.map(u=>u.usuario).join(', ') + ' no tiene(n) permisos guardados en la Hoja — entra a Usuarios, edítalo(s) y dale "Guardar Usuario" de nuevo (con la sincronización activada) para corregirlo.';
+      } else {
+        resumen += ' Todos tienen permisos guardados correctamente. Si aun así no entra en el otro dispositivo, revisa que ese dispositivo tenga la misma URL pegada y use "Importar / Actualizar Datos en Este Dispositivo".';
+      }
     }
     mostrarEstadoSync(resumen, data.totalFilas > 0);
   }catch(err){
@@ -1988,20 +1995,36 @@ async function importarDatosDesdeNube(){
 
     // ---- Usuarios adicionales (con permisos): se fusionan por id. Así el
     // usuario creado en un dispositivo puede iniciar sesión en cualquier
-    // otro después de importar. Si ya existe localmente, se actualiza con
-    // lo que traiga la Hoja (última versión guardada gana). ----
+    // otro después de importar. IMPORTANTE: si por algún motivo la Hoja no
+    // trae permisos válidos para ese usuario (columna vacía, versión vieja
+    // del script, etc.), NUNCA se le borran los permisos que ya tenía en
+    // este dispositivo — se deja tal cual estaba, para no dejarlo sin acceso
+    // por accidente. Solo se reemplazan cuando lo que llega es un objeto de
+    // permisos reconocible. ----
     const usuariosLocales = getUsuarios();
     const mapaUsuariosPorId = {};
     usuariosLocales.forEach(u=> mapaUsuariosPorId[u.id] = u);
+    let usuariosConPermisosDudosos = 0;
     (remoto.usuarios||[]).forEach(ru=>{
       let permisosRemotos = null;
-      try{ permisosRemotos = JSON.parse(ru.permisosJSON || '{}'); }catch(e){ permisosRemotos = {}; }
-      const datosUsuario = { id: ru.id, nombre: ru.nombre || '', usuario: ru.usuario || '', password: ru.password || '', permisos: permisosRemotos };
-      if(mapaUsuariosPorId[ru.id]){
-        Object.assign(mapaUsuariosPorId[ru.id], datosUsuario);
+      try{ permisosRemotos = JSON.parse(ru.permisosJSON || ''); }catch(e){ permisosRemotos = null; }
+      // Un objeto de permisos válido siempre trae al menos "clientes" o "pagos".
+      const permisosValidos = permisosRemotos && typeof permisosRemotos === 'object' && (permisosRemotos.clientes || permisosRemotos.pagos !== undefined);
+      if(!permisosValidos) usuariosConPermisosDudosos++;
+      const local = mapaUsuariosPorId[ru.id];
+      if(local){
+        local.nombre = ru.nombre || local.nombre;
+        local.usuario = ru.usuario || local.usuario;
+        if(ru.password) local.password = ru.password;
+        if(permisosValidos) local.permisos = permisosRemotos;
+        // si NO son válidos, se deja el permiso local intacto (no se toca)
       } else {
-        usuariosLocales.push(datosUsuario);
-        mapaUsuariosPorId[ru.id] = datosUsuario;
+        const nuevo = {
+          id: ru.id, nombre: ru.nombre || '', usuario: ru.usuario || '', password: ru.password || '',
+          permisos: permisosValidos ? permisosRemotos : PERMISOS_TOTAL
+        };
+        usuariosLocales.push(nuevo);
+        mapaUsuariosPorId[ru.id] = nuevo;
       }
     });
     setUsuarios(usuariosLocales);
@@ -2018,7 +2041,11 @@ async function importarDatosDesdeNube(){
       try { initBigMap(); } catch(e) {}
     }
 
-    mostrarEstadoSync(`✔ Importado: ${(remoto.clientes||[]).length} clientes, ${(remoto.planes||[]).length} planes, ${(remoto.pagos||[]).length} pagos, ${(remoto.equipos||[]).length} equipos, ${(remoto.usuarios||[]).length} usuarios revisados.`, true);
+    let mensajeFinal = `✔ Importado: ${(remoto.clientes||[]).length} clientes, ${(remoto.planes||[]).length} planes, ${(remoto.pagos||[]).length} pagos, ${(remoto.equipos||[]).length} equipos, ${(remoto.usuarios||[]).length} usuarios revisados.`;
+    if(usuariosConPermisosDudosos > 0){
+      mensajeFinal += ` ⚠ ${usuariosConPermisosDudosos} usuario(s) llegaron sin permisos válidos desde la Hoja — revisa Usuarios y vuelve a guardarlos (o usa "Sincronizar Todo Ahora") para corregirlo.`;
+    }
+    mostrarEstadoSync(mensajeFinal, usuariosConPermisosDudosos === 0);
     showToast('Datos importados desde la nube');
     logAccion('Importación desde la nube', 'Clientes/Planes/Pagos/Equipos sincronizados a este dispositivo');
   }catch(err){
@@ -2331,7 +2358,9 @@ function doPost(e) {
       for (var e = 1; e < datosDiagU.length; e++) {
         var filaDU = datosDiagU[e];
         if (!filaDU[0]) continue;
-        muestraDiagU.push({ id: filaDU[0], nombre: filaDU[1], usuario: filaDU[2] });
+        var permisosCelda = String(filaDU[4] || '').trim();
+        var tienePermisos = permisosCelda.length > 2 && permisosCelda.indexOf('clientes') !== -1;
+        muestraDiagU.push({ id: filaDU[0], nombre: filaDU[1], usuario: filaDU[2], tienePermisos: tienePermisos });
       }
       return respuesta({ ok: true, existeUsuariosSheet: true, totalFilas: totalFilasDiagU, muestra: muestraDiagU });
     }
@@ -2395,7 +2424,7 @@ function doPost(e) {
   }
 }
 
-var VERSION_SCRIPT = 'v10-2026-08-09-diagnostico-usuarios';
+var VERSION_SCRIPT = 'v11-2026-08-09-fix-permisos-import';
 
 function doGet(e) {
   return respuesta({ ok: true, mensaje: 'MCE Sync API activa', version: VERSION_SCRIPT });
