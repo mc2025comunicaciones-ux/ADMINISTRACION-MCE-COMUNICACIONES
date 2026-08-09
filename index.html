@@ -1860,6 +1860,16 @@ async function syncPagoToSheet(cliente, pago){
   }catch(err){ return { ok:false, error: err.message }; }
 }
 
+/* Borra un pago puntual de la Hoja de Google (fila en la pestaña "Pagos") */
+async function eliminarPagoDeSheet(pagoId){
+  const url = getSyncUrl();
+  if(!url) return { ok:false, skip:true };
+  try{
+    const res = await fetch(url, { method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' }, body: JSON.stringify({ action:'deletePago', id: pagoId }) });
+    return await res.json().catch(()=>({ok:true}));
+  }catch(err){ return { ok:false, error: err.message }; }
+}
+
 /* Envía (crea o actualiza) un equipo en la Hoja de Google */
 async function syncEquipoToSheet(equipo){
   const url = getSyncUrl();
@@ -2202,6 +2212,14 @@ function doPost(e) {
       return respuesta({ ok: true });
     }
 
+    if (payload.action === 'deletePago') {
+      var hojaPagosDel = ss.getSheetByName('Pagos');
+      if (!hojaPagosDel) { return respuesta({ ok: true, eliminado: false }); }
+      var filaDel = buscarFilaPorId(hojaPagosDel, payload.id);
+      if (filaDel > 0) { hojaPagosDel.deleteRow(filaDel); return respuesta({ ok: true, eliminado: true }); }
+      return respuesta({ ok: true, eliminado: false });
+    }
+
     if (payload.action === 'upsertEquipo') {
       var hojaEquipos = obtenerHoja(ss, 'Equipos', ['id','tipo','nombre','serial','ip','mac','cedulaCliente']);
       var de = payload.data;
@@ -2424,7 +2442,7 @@ function doPost(e) {
   }
 }
 
-var VERSION_SCRIPT = 'v11-2026-08-09-fix-permisos-import';
+var VERSION_SCRIPT = 'v12-2026-08-09-eliminar-pago';
 
 function doGet(e) {
   return respuesta({ ok: true, mensaje: 'MCE Sync API activa', version: VERSION_SCRIPT });
@@ -2737,6 +2755,16 @@ function avanzarVencimientoUnMes(fechaActualISO, corteDia){
   const actual = fechaActualISO ? new Date(fechaActualISO+'T00:00:00') : new Date();
   let mes = actual.getMonth()+1, anio = actual.getFullYear();
   if(mes > 11){ mes = 0; anio++; }
+  return fechaParaDiaDelMes(anio, mes, corteDia);
+}
+
+/* Inversa de avanzarVencimientoUnMes: retrocede la fecha de corte un mes hacia
+   atrás. Se usa al eliminar un pago por error, para devolver al cliente a su
+   fecha de vencimiento anterior (la que tenía antes de registrar ese pago). */
+function retrocederVencimientoUnMes(fechaActualISO, corteDia){
+  const actual = fechaActualISO ? new Date(fechaActualISO+'T00:00:00') : new Date();
+  let mes = actual.getMonth()-1, anio = actual.getFullYear();
+  if(mes < 0){ mes = 11; anio--; }
   return fechaParaDiaDelMes(anio, mes, corteDia);
 }
 
@@ -3217,7 +3245,12 @@ function renderPagosTable(filtro){
       <td>${pagoActual ? (pagoActual.enviadoWhatsapp ? '<span class="badge badge-green">✔ Enviado</span>' : '<span class="badge badge-orange">✘ No enviado</span>') : '—'}</td>
       <td>
         ${pagado
-          ? `<button class="btn btn-outline btn-small" type="button" onclick="verReciboExistente('${c.id}')">Ver Recibo</button>`
+          ? `<div class="row-actions">
+               <button class="btn btn-outline btn-small" type="button" onclick="verReciboExistente('${c.id}')">Ver Recibo</button>
+               ${puedeRegistrar ? `<button class="icon-btn danger" type="button" title="Eliminar este pago (corrige un error puntual, sin afectar a los demás clientes)" onclick="eliminarPago('${pagoActual.id}')">
+                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0-1 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 6"/></svg>
+               </button>` : ''}
+             </div>`
           : (puedeRegistrar ? `<button class="btn btn-green btn-small" type="button" onclick="abrirModalPago('${c.id}')">Registrar Pago</button>` : '<span class="cell-muted">Sin permiso</span>')
         }
       </td>
@@ -3284,6 +3317,44 @@ document.getElementById('formPago').addEventListener('submit', function(e){
 
   if(getSyncUrl() && getSyncAuto()){ syncPagoToSheet(c, pago); }
 });
+
+/* Elimina UN pago puntual (por error de registro), sin afectar a los demás
+   clientes ni al resto del mes — a diferencia de "Reiniciar Recaudo del Mes",
+   que borra TODO el mes completo. También regresa la fecha de corte del
+   cliente a como estaba antes de ese pago. */
+function eliminarPago(pagoId){
+  if(!(esSuperAdmin() || permisosActuales().pagos.registrar)){ showToast('No tienes permiso para eliminar pagos'); return; }
+  const pago = getPagos().find(p=>p.id===pagoId);
+  if(!pago){ showToast('No se encontró ese pago'); return; }
+  const cliente = getClientes().find(c=>c.id===pago.clienteId);
+  const nombreCliente = cliente ? cliente.nombre : '(cliente eliminado)';
+  if(!confirm('¿Eliminar el pago de ' + nombreCliente + ' por ' + fmtMoney(pago.valor) + '? El cliente volverá a aparecer como pendiente y su fecha de corte regresará a como estaba antes de este pago.')) return;
+
+  setPagos(getPagos().filter(p=>p.id!==pagoId));
+
+  if(cliente){
+    const clientesLista = getClientes();
+    const idx = clientesLista.findIndex(c=>c.id===cliente.id);
+    if(idx>=0){
+      const fechaAnterior = retrocederVencimientoUnMes(clientesLista[idx].fechaVencimiento, clientesLista[idx].corte);
+      clientesLista[idx].fechaVencimiento = dateToISO(fechaAnterior);
+      setClientes(clientesLista);
+      if(getSyncUrl() && getSyncAuto()){ syncClienteToSheet(clientesLista[idx]); }
+    }
+  }
+
+  renderPagosTable(document.getElementById('buscarPago').value);
+  renderClientesTable();
+  renderStats();
+  showToast('Pago eliminado');
+  logAccion('Pago eliminado', nombreCliente + ' — ' + fmtMoney(pago.valor) + ' (Recibo N° ' + pago.numero + ')');
+
+  if(getSyncUrl() && getSyncAuto()){
+    eliminarPagoDeSheet(pagoId).then(r=>{
+      if(!r || !r.ok){ showToast('El pago se borró aquí, pero no se pudo borrar de la Hoja (revisa Sincronización)'); }
+    });
+  }
+}
 
 function reiniciarRecaudo(){
   if(!esSuperAdmin()){ showToast('Solo la cuenta administradora puede reiniciar el recaudo'); return; }
