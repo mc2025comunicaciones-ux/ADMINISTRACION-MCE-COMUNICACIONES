@@ -1265,7 +1265,13 @@ function mostrarApp(){
   document.getElementById('loginScreen').style.display = 'none';
   aplicarPermisos();
 }
-if(checkSession()){ mostrarApp(); }
+// Solo oculta la pantalla de login de inmediato si ya había sesión (evita el
+// parpadeo del login). NO se llama a aplicarPermisos() aquí todavía, porque
+// en este punto del script aún no existen algunas constantes que se declaran
+// más abajo (como MESES) — eso rompía TODA la página para quien ya tenía
+// sesión abierta. aplicarPermisos() se llama al final del script, una vez
+// que todo el archivo ya se cargó por completo.
+if(checkSession()){ document.getElementById('loginScreen').style.display = 'none'; }
 
 function loginComo(user){
   localStorage.setItem('mce_session','true');
@@ -3631,14 +3637,26 @@ function usarValorEscaneado(){
 }
 
 /* ===================== INIT ===================== */
-renderStats();
-renderClientesTable();
-renderPlanesTable();
-renderPagosTable('');
-renderEquiposTable();
-renderLogsTable();
-renderUsuariosTable();
-if(checkSession()){ aplicarPermisos(); }
+function initApp(){
+  renderStats();
+  renderClientesTable();
+  renderPlanesTable();
+  renderPagosTable('');
+  renderEquiposTable();
+  renderLogsTable();
+  renderUsuariosTable();
+  if(checkSession()){ aplicarPermisos(); }
+}
+try{
+  initApp();
+}catch(err){
+  console.error('Error inicializando el panel:', err);
+  // Red de seguridad: si algo falla al cargar los datos guardados, al menos
+  // se reintenta cada parte por separado para no dejar toda la página en blanco.
+  [renderStats, renderClientesTable, renderPlanesTable, ()=>renderPagosTable(''), renderEquiposTable, renderLogsTable, renderUsuariosTable]
+    .forEach(fn=>{ try{ fn(); }catch(e){ console.error(e); } });
+  if(checkSession()){ try{ aplicarPermisos(); }catch(e){ console.error(e); } }
+}
 </script>
 </body>
 </html>
