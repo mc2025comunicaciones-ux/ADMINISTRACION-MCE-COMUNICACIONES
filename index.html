@@ -632,11 +632,26 @@
             <div class="panel-sub">Solo para consulta — toca un cliente para ver su información y copiar sus coordenadas. La ubicación se edita desde "Clientes"</div>
           </div>
         </div>
-        <div style="display:flex; gap:18px; flex-wrap:wrap; margin-bottom:14px; font-size:12.5px; color:var(--text-muted);">
-          <span style="display:flex; align-items:center; gap:6px;"><span style="width:12px;height:12px;border-radius:50%;background:#22c55e;display:inline-block;"></span> EDWIN</span>
-          <span style="display:flex; align-items:center; gap:6px;"><span style="width:12px;height:12px;border-radius:50%;background:#2f6fed;display:inline-block;"></span> IVAN</span>
-          <span style="display:flex; align-items:center; gap:6px;"><span style="width:12px;height:12px;border-radius:50%;background:#a855f7;display:inline-block;"></span> SOCIA</span>
-          <span style="display:flex; align-items:center; gap:6px;"><span style="width:12px;height:12px;border-radius:50%;background:#8b96bd;border:2px solid #ef4444;display:inline-block;"></span> Anillo rojo = vencido (moroso)</span>
+        <div class="panel-head" style="margin-bottom:14px; flex-wrap:wrap; gap:10px;">
+          <div style="display:flex; gap:16px; flex-wrap:wrap; font-size:12.5px; color:var(--text-muted);">
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+              <input type="checkbox" id="filtroMapaEDWIN" checked onchange="initBigMap()">
+              <span style="width:12px;height:12px;border-radius:50%;background:#22c55e;display:inline-block;"></span> EDWIN
+            </label>
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+              <input type="checkbox" id="filtroMapaIVAN" checked onchange="initBigMap()">
+              <span style="width:12px;height:12px;border-radius:50%;background:#2f6fed;display:inline-block;"></span> IVAN
+            </label>
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+              <input type="checkbox" id="filtroMapaSOCIA" checked onchange="initBigMap()">
+              <span style="width:12px;height:12px;border-radius:50%;background:#a855f7;display:inline-block;"></span> SOCIA
+            </label>
+            <span style="display:flex; align-items:center; gap:6px;"><span style="width:12px;height:12px;border-radius:50%;background:#8b96bd;border:2px solid #ef4444;display:inline-block;"></span> Anillo rojo = vencido (moroso)</span>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button class="btn btn-outline btn-small" type="button" onclick="marcarFiltroMapa(true)">Marcar todas</button>
+            <button class="btn btn-outline btn-small" type="button" onclick="marcarFiltroMapa(false)">Desmarcar todas</button>
+          </div>
         </div>
         <div id="mapaClientesBox"></div>
       </div>
@@ -3365,8 +3380,28 @@ function copiarCoordenadasFallback(texto){
   document.body.removeChild(temp);
 }
 
+/* Lee cuáles propietarios están marcados en los filtros del mapa (EDWIN/IVAN/SOCIA) */
+function propietariosFiltradosMapa(){
+  const activos = [];
+  ['EDWIN','IVAN','SOCIA'].forEach(prop=>{
+    const chk = document.getElementById('filtroMapa'+prop);
+    if(chk && chk.checked) activos.push(prop);
+  });
+  return activos;
+}
+
+/* Botones "Marcar todas" / "Desmarcar todas" del mapa */
+function marcarFiltroMapa(marcar){
+  ['EDWIN','IVAN','SOCIA'].forEach(prop=>{
+    const chk = document.getElementById('filtroMapa'+prop);
+    if(chk) chk.checked = marcar;
+  });
+  initBigMap();
+}
+
 function initBigMap(){
-  const clientes = getClientes();
+  const propietariosActivos = propietariosFiltradosMapa();
+  const clientes = getClientes().filter(c=>propietariosActivos.includes(c.propietario));
   const withCoords = clientes.filter(c=>c.lat && c.lng);
   const centerLat = withCoords.length ? withCoords[0].lat : DEFAULT_LAT;
   const centerLng = withCoords.length ? withCoords[0].lng : DEFAULT_LNG;
@@ -3401,8 +3436,10 @@ function initBigMap(){
     `);
   });
 
-  if(withCoords.length===0){
-    setTimeout(()=>showToast('Aún no hay clientes ubicados en el mapa'), 300);
+  if(propietariosActivos.length===0){
+    setTimeout(()=>showToast('No hay ningún propietario marcado — activa al menos uno en la parte de arriba'), 300);
+  } else if(withCoords.length===0){
+    setTimeout(()=>showToast('No hay clientes ubicados en el mapa para los propietarios marcados'), 300);
   }
   setTimeout(()=>bigMapInstance.invalidateSize(), 150);
 }
