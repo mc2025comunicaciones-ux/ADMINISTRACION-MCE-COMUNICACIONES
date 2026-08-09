@@ -701,7 +701,7 @@
             <h2>Usuarios y Permisos</h2>
             <div class="panel-sub">Crea usuarios adicionales y define exactamente a qué pueden acceder</div>
           </div>
-          <button class="btn btn-primary" type="button" onclick="openUsuarioModal()">
+          <button class="btn btn-primary" type="button" id="btnNuevoUsuario" onclick="openUsuarioModal()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>
             Nuevo Usuario
           </button>
@@ -780,7 +780,7 @@
             <h2>Código del Puente (Apps Script)</h2>
             <div class="panel-sub">Descárgalo y pégalo en Extensiones → Apps Script de tu Hoja de Google, cada vez que se actualice</div>
           </div>
-          <button class="btn btn-outline btn-small" type="button" onclick="descargarCodigoAppsScript()">
+          <button class="btn btn-outline btn-small" type="button" id="btnDescargarCodigo" onclick="descargarCodigoAppsScript()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
             Descargar código (Code.gs)
           </button>
@@ -915,6 +915,7 @@
             <option value="">— Elegir plantilla —</option>
             <option value="tecnico">Técnico de campo (crear clientes e instalaciones, sin editar)</option>
             <option value="cobrador">Cobrador (ver clientes y gestionar pagos)</option>
+            <option value="socio">Socio (todo, excepto crear usuarios, registrar pagos y descargar código)</option>
             <option value="total">Acceso total (como Administrador)</option>
             <option value="custom">Personalizado (marca manualmente)</option>
           </select>
@@ -939,12 +940,26 @@
           </div>
         </div>
         <div class="form-field full">
+          <label style="font-size:12.5px; color:var(--text-primary); margin-bottom:2px;">Pagos</label>
+          <div style="display:flex; gap:16px; flex-wrap:wrap; font-size:12.5px; color:var(--text-muted);">
+            <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" id="pPagosVer"> Ver pagos</label>
+            <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" id="pPagosRegistrar"> Registrar pagos (recaudar)</label>
+          </div>
+        </div>
+        <div class="form-field full">
           <label style="font-size:12.5px; color:var(--text-primary); margin-bottom:2px;">Otros módulos</label>
           <div style="display:flex; gap:16px; flex-wrap:wrap; font-size:12.5px; color:var(--text-muted);">
-            <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" id="pPagos"> Pagos</label>
             <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" id="pPlanes"> Planes</label>
             <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" id="pMapa"> Mapa Clientes</label>
             <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" id="pLogs"> Logs</label>
+          </div>
+        </div>
+        <div class="form-field full">
+          <label style="font-size:12.5px; color:var(--text-primary); margin-bottom:2px;">Administración (sensible)</label>
+          <div style="display:flex; gap:16px; flex-wrap:wrap; font-size:12.5px; color:var(--text-muted);">
+            <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" id="pUsuarios"> Gestionar usuarios (crear/editar/eliminar)</label>
+            <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" id="pConfiguracion"> Configuración / Sincronización</label>
+            <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" id="pDescargarCodigo"> Descargar código Apps Script (Code.gs)</label>
           </div>
         </div>
       </div>
@@ -1183,21 +1198,53 @@ const DB_KEY_CURRENT_USER = 'mce_current_user';
 const PERMISOS_TOTAL = {
   clientes:{ver:true, crear:true, editar:true, eliminar:true},
   instalaciones:{ver:true, crear:true, editar:true, eliminar:true},
-  pagos:true, planes:true, mapa:true, logs:true
+  pagos:{ver:true, registrar:true},
+  planes:true, mapa:true, logs:true,
+  usuarios:true, configuracion:true, descargarCodigo:true
 };
 const PRESETS_USUARIO = {
   tecnico: {
     clientes:{ver:true, crear:true, editar:false, eliminar:false},
     instalaciones:{ver:true, crear:true, editar:false, eliminar:false},
-    pagos:false, planes:false, mapa:false, logs:false
+    pagos:{ver:false, registrar:false}, planes:false, mapa:false, logs:false,
+    usuarios:false, configuracion:false, descargarCodigo:false
   },
   cobrador: {
     clientes:{ver:true, crear:false, editar:false, eliminar:false},
     instalaciones:{ver:false, crear:false, editar:false, eliminar:false},
-    pagos:true, planes:false, mapa:true, logs:false
+    pagos:{ver:true, registrar:true}, planes:false, mapa:true, logs:false,
+    usuarios:false, configuracion:false, descargarCodigo:false
+  },
+  socio: {
+    clientes:{ver:true, crear:true, editar:true, eliminar:true},
+    instalaciones:{ver:true, crear:true, editar:true, eliminar:true},
+    pagos:{ver:true, registrar:false}, planes:true, mapa:true, logs:true,
+    usuarios:false, configuracion:true, descargarCodigo:false
   },
   total: PERMISOS_TOTAL
 };
+
+/* Completa cualquier permiso viejo o incompleto con valores por defecto seguros
+   (ej. usuarios creados antes de que existiera "usuarios"/"configuracion"/"descargarCodigo",
+   o cuando "pagos" era un booleano en vez de {ver, registrar}). */
+function normalizarPermisos(permisos){
+  const p = permisos || PERMISOS_TOTAL;
+  const pagosObj = (p.pagos && typeof p.pagos === 'object')
+    ? { ver: !!p.pagos.ver, registrar: !!p.pagos.registrar }
+    : { ver: !!p.pagos, registrar: !!p.pagos };
+  return {
+    clientes: p.clientes || { ver:false, crear:false, editar:false, eliminar:false },
+    instalaciones: p.instalaciones || { ver:false, crear:false, editar:false, eliminar:false },
+    pagos: pagosObj,
+    planes: !!p.planes,
+    mapa: !!p.mapa,
+    logs: !!p.logs,
+    usuarios: !!p.usuarios,
+    configuracion: !!p.configuracion,
+    descargarCodigo: !!p.descargarCodigo
+  };
+}
+function permisosActuales(){ return normalizarPermisos(getCurrentUser().permisos); }
 
 function getUsuarios(){ try{ return JSON.parse(localStorage.getItem(DB_KEY_USUARIOS) || '[]'); }catch(e){ return []; } }
 function setUsuarios(list){ localStorage.setItem(DB_KEY_USUARIOS, JSON.stringify(list)); }
@@ -1266,17 +1313,17 @@ function toggleNav(view, allowed){
 
 function aplicarPermisos(){
   const user = getCurrentUser();
-  const p = user.permisos || PERMISOS_TOTAL;
+  const p = normalizarPermisos(user.permisos);
   const admin = esSuperAdmin();
 
   toggleNav('clientes', !!p.clientes.ver);
   toggleNav('planes', !!p.planes);
-  toggleNav('pagos', !!p.pagos);
+  toggleNav('pagos', !!p.pagos.ver);
   toggleNav('mapa', !!p.mapa);
   toggleNav('instalaciones', !!p.instalaciones.ver);
   toggleNav('logs', !!p.logs);
-  toggleNav('usuarios', admin);
-  toggleNav('configuracion', admin);
+  toggleNav('usuarios', admin || p.usuarios);
+  toggleNav('configuracion', admin || p.configuracion);
 
   const btnNC = document.getElementById('btnNuevoCliente');
   if(btnNC) btnNC.style.display = p.clientes.crear ? 'inline-flex' : 'none';
@@ -1284,10 +1331,16 @@ function aplicarPermisos(){
   if(btnNE) btnNE.style.display = p.instalaciones.crear ? 'inline-flex' : 'none';
 
   const panelPagos = document.getElementById('panelPagosInicio');
-  if(panelPagos) panelPagos.style.display = p.pagos ? 'block' : 'none';
+  if(panelPagos) panelPagos.style.display = p.pagos.ver ? 'block' : 'none';
 
   const btnReiniciar = document.getElementById('btnReiniciarRecaudo');
   if(btnReiniciar) btnReiniciar.style.display = admin ? 'inline-flex' : 'none';
+
+  const btnNuevoUsuario = document.getElementById('btnNuevoUsuario');
+  if(btnNuevoUsuario) btnNuevoUsuario.style.display = (admin || p.usuarios) ? 'inline-flex' : 'none';
+
+  const btnDescargarCodigo = document.getElementById('btnDescargarCodigo');
+  if(btnDescargarCodigo) btnDescargarCodigo.style.display = (admin || p.descargarCodigo) ? 'inline-flex' : 'none';
 
   document.getElementById('userChipName').textContent = user.nombre || user.usuario;
   document.getElementById('userChipRole').textContent = admin ? 'Administrador' : 'Usuario';
@@ -1303,6 +1356,7 @@ function aplicarPermisos(){
 
   renderClientesTable();
   renderEquiposTable();
+  renderPagosTable(document.getElementById('buscarPago') ? document.getElementById('buscarPago').value : '');
 }
 
 /* ===================== USUARIOS ===================== */
@@ -1317,10 +1371,14 @@ function aplicarPresetUsuario(preset){
   document.getElementById('pInstCrear').checked = base.instalaciones.crear;
   document.getElementById('pInstEditar').checked = base.instalaciones.editar;
   document.getElementById('pInstEliminar').checked = base.instalaciones.eliminar;
-  document.getElementById('pPagos').checked = !!base.pagos;
+  document.getElementById('pPagosVer').checked = !!base.pagos.ver;
+  document.getElementById('pPagosRegistrar').checked = !!base.pagos.registrar;
   document.getElementById('pPlanes').checked = !!base.planes;
   document.getElementById('pMapa').checked = !!base.mapa;
   document.getElementById('pLogs').checked = !!base.logs;
+  document.getElementById('pUsuarios').checked = !!base.usuarios;
+  document.getElementById('pConfiguracion').checked = !!base.configuracion;
+  document.getElementById('pDescargarCodigo').checked = !!base.descargarCodigo;
 }
 
 function leerPermisosFormUsuario(){
@@ -1337,33 +1395,43 @@ function leerPermisosFormUsuario(){
       editar: document.getElementById('pInstEditar').checked,
       eliminar: document.getElementById('pInstEliminar').checked,
     },
-    pagos: document.getElementById('pPagos').checked,
+    pagos:{
+      ver: document.getElementById('pPagosVer').checked,
+      registrar: document.getElementById('pPagosRegistrar').checked,
+    },
     planes: document.getElementById('pPlanes').checked,
     mapa: document.getElementById('pMapa').checked,
     logs: document.getElementById('pLogs').checked,
+    usuarios: document.getElementById('pUsuarios').checked,
+    configuracion: document.getElementById('pConfiguracion').checked,
+    descargarCodigo: document.getElementById('pDescargarCodigo').checked,
   };
 }
 
 function resumenPermisos(permisos){
+  const p = normalizarPermisos(permisos);
   const partes = [];
-  if(permisos.clientes.ver){
+  if(p.clientes.ver){
     let acciones = [];
-    if(permisos.clientes.crear) acciones.push('crear');
-    if(permisos.clientes.editar) acciones.push('editar');
-    if(permisos.clientes.eliminar) acciones.push('eliminar');
+    if(p.clientes.crear) acciones.push('crear');
+    if(p.clientes.editar) acciones.push('editar');
+    if(p.clientes.eliminar) acciones.push('eliminar');
     partes.push('Clientes' + (acciones.length ? ' ('+acciones.join(', ')+')' : ' (solo ver)'));
   }
-  if(permisos.instalaciones.ver){
+  if(p.instalaciones.ver){
     let acciones = [];
-    if(permisos.instalaciones.crear) acciones.push('crear');
-    if(permisos.instalaciones.editar) acciones.push('editar');
-    if(permisos.instalaciones.eliminar) acciones.push('eliminar');
+    if(p.instalaciones.crear) acciones.push('crear');
+    if(p.instalaciones.editar) acciones.push('editar');
+    if(p.instalaciones.eliminar) acciones.push('eliminar');
     partes.push('Instalaciones' + (acciones.length ? ' ('+acciones.join(', ')+')' : ' (solo ver)'));
   }
-  if(permisos.pagos) partes.push('Pagos');
-  if(permisos.planes) partes.push('Planes');
-  if(permisos.mapa) partes.push('Mapa');
-  if(permisos.logs) partes.push('Logs');
+  if(p.pagos.ver) partes.push('Pagos' + (p.pagos.registrar ? ' (ver y registrar)' : ' (solo ver)'));
+  if(p.planes) partes.push('Planes');
+  if(p.mapa) partes.push('Mapa');
+  if(p.logs) partes.push('Logs');
+  if(p.usuarios) partes.push('Usuarios');
+  if(p.configuracion) partes.push('Configuración');
+  if(p.descargarCodigo) partes.push('Descargar código');
   return partes.length ? partes.join(' · ') : 'Sin permisos asignados';
 }
 
@@ -1373,6 +1441,7 @@ function renderUsuariosTable(){
   const empty = document.getElementById('usuariosEmpty');
   if(usuarios.length===0){ tbody.innerHTML=''; empty.style.display='block'; return; }
   empty.style.display='none';
+  const puedeGestionar = esSuperAdmin() || permisosActuales().usuarios;
   tbody.innerHTML = usuarios.map(u=>`
     <tr>
       <td class="cell-strong">${u.nombre}</td>
@@ -1380,12 +1449,12 @@ function renderUsuariosTable(){
       <td class="cell-muted" style="max-width:320px;">${resumenPermisos(u.permisos)}</td>
       <td>
         <div class="row-actions">
-          <button class="icon-btn" type="button" onclick="editUsuario('${u.id}')" title="Editar">
+          ${puedeGestionar ? `<button class="icon-btn" type="button" onclick="editUsuario('${u.id}')" title="Editar">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
           </button>
           <button class="icon-btn danger" type="button" onclick="deleteUsuario('${u.id}')" title="Eliminar">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0-1 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 6"/></svg>
-          </button>
+          </button>` : ''}
         </div>
       </td>
     </tr>
@@ -1393,11 +1462,12 @@ function renderUsuariosTable(){
 }
 
 function openUsuarioModal(id){
+  if(!(esSuperAdmin() || permisosActuales().usuarios)){ showToast('No tienes permiso para gestionar usuarios'); return; }
   document.getElementById('formUsuario').reset();
   document.getElementById('usuarioId').value = '';
   document.getElementById('usuarioModalTitle').textContent = 'Nuevo Usuario';
   aplicarPresetUsuario('');
-  ['pClienteVer','pClienteCrear','pClienteEditar','pClienteEliminar','pInstVer','pInstCrear','pInstEditar','pInstEliminar','pPagos','pPlanes','pMapa','pLogs'].forEach(id=>{
+  ['pClienteVer','pClienteCrear','pClienteEditar','pClienteEliminar','pInstVer','pInstCrear','pInstEditar','pInstEliminar','pPagosVer','pPagosRegistrar','pPlanes','pMapa','pLogs','pUsuarios','pConfiguracion','pDescargarCodigo'].forEach(id=>{
     document.getElementById(id).checked = false;
   });
   if(id){
@@ -1408,7 +1478,7 @@ function openUsuarioModal(id){
       document.getElementById('uNombre').value = u.nombre;
       document.getElementById('uUsuario').value = u.usuario;
       document.getElementById('uPassword').value = u.password;
-      const perm = u.permisos;
+      const perm = normalizarPermisos(u.permisos);
       document.getElementById('pClienteVer').checked = perm.clientes.ver;
       document.getElementById('pClienteCrear').checked = perm.clientes.crear;
       document.getElementById('pClienteEditar').checked = perm.clientes.editar;
@@ -1417,10 +1487,14 @@ function openUsuarioModal(id){
       document.getElementById('pInstCrear').checked = perm.instalaciones.crear;
       document.getElementById('pInstEditar').checked = perm.instalaciones.editar;
       document.getElementById('pInstEliminar').checked = perm.instalaciones.eliminar;
-      document.getElementById('pPagos').checked = !!perm.pagos;
-      document.getElementById('pPlanes').checked = !!perm.planes;
-      document.getElementById('pMapa').checked = !!perm.mapa;
-      document.getElementById('pLogs').checked = !!perm.logs;
+      document.getElementById('pPagosVer').checked = perm.pagos.ver;
+      document.getElementById('pPagosRegistrar').checked = perm.pagos.registrar;
+      document.getElementById('pPlanes').checked = perm.planes;
+      document.getElementById('pMapa').checked = perm.mapa;
+      document.getElementById('pLogs').checked = perm.logs;
+      document.getElementById('pUsuarios').checked = perm.usuarios;
+      document.getElementById('pConfiguracion').checked = perm.configuracion;
+      document.getElementById('pDescargarCodigo').checked = perm.descargarCodigo;
     }
   }
   document.getElementById('modalUsuario').classList.add('active');
@@ -1428,6 +1502,7 @@ function openUsuarioModal(id){
 function editUsuario(id){ openUsuarioModal(id); }
 
 function deleteUsuario(id){
+  if(!(esSuperAdmin() || permisosActuales().usuarios)){ showToast('No tienes permiso para gestionar usuarios'); return; }
   const u = getUsuarios().find(x=>x.id===id);
   if(!confirm('¿Eliminar el usuario "'+(u?u.usuario:id)+'"? Ya no podrá iniciar sesión.')) return;
   setUsuarios(getUsuarios().filter(x=>x.id!==id));
@@ -1438,6 +1513,7 @@ function deleteUsuario(id){
 
 document.getElementById('formUsuario').addEventListener('submit', function(e){
   e.preventDefault();
+  if(!(esSuperAdmin() || permisosActuales().usuarios)){ showToast('No tienes permiso para gestionar usuarios'); return; }
   const id = document.getElementById('usuarioId').value || 'usr_'+Date.now();
   const usuarioLogin = document.getElementById('uUsuario').value.trim();
 
@@ -1895,6 +1971,7 @@ async function sincronizarTodosClientes(){
 }
 
 function descargarCodigoAppsScript(){
+  if(!(esSuperAdmin() || permisosActuales().descargarCodigo)){ showToast('No tienes permiso para descargar el código de sincronización'); return; }
   const codigo = `// ============================================================
 // MCE COMUNICACIONES — Puente entre el Panel de Administración
 // y la página pública "Gestión Cliente" (vía Google Sheets)
@@ -2650,6 +2727,7 @@ function renderStats(){
   if(clientes.length===0){ tbody.innerHTML=''; empty.style.display='block'; return; }
   empty.style.display='none';
   const ordenado = [...clientes].sort((a,b)=> (clientesPagadosIds.has(a.id)?1:0) - (clientesPagadosIds.has(b.id)?1:0));
+  const puedeRegistrar = esSuperAdmin() || permisosActuales().pagos.registrar;
   tbody.innerHTML = ordenado.map(c=>{
     const pagado = clientesPagadosIds.has(c.id);
     return `
@@ -2658,7 +2736,7 @@ function renderStats(){
       <td class="cell-muted">${c.vereda||'—'}</td>
       <td class="mono cell-muted">${mostrarFechaCorte(c)}</td>
       <td>${pagado ? '<span class="badge badge-green">● Pagado</span>' : (estaVencido(c) ? '<span class="badge badge-red">● Vencido</span>' : '<span class="badge badge-orange">● Pendiente</span>')}</td>
-      <td>${pagado ? '' : '<button class="btn btn-green btn-small" type="button" onclick="abrirModalPago(\''+c.id+'\')">Registrar Pago</button>'}</td>
+      <td>${(pagado || !puedeRegistrar) ? '' : '<button class="btn btn-green btn-small" type="button" onclick="abrirModalPago(\''+c.id+'\')">Registrar Pago</button>'}</td>
     </tr>`;
   }).join('');
 }
@@ -2668,7 +2746,7 @@ function renderClientesTable(){
   const clientes = getClientes();
   const tbody = document.getElementById('tablaClientes');
   const empty = document.getElementById('clientesEmpty');
-  const perm = (getCurrentUser().permisos || PERMISOS_TOTAL).clientes;
+  const perm = permisosActuales().clientes;
   if(clientes.length===0){ tbody.innerHTML=''; empty.style.display='block'; return; }
   empty.style.display='none';
   tbody.innerHTML = clientes.map(c=>`
@@ -2699,7 +2777,7 @@ function renderClientesTable(){
 }
 
 function openClienteModal(id){
-  const perm = (getCurrentUser().permisos || PERMISOS_TOTAL).clientes;
+  const perm = permisosActuales().clientes;
   if(!id && !perm.crear){ showToast('No tienes permiso para crear clientes'); return; }
   document.getElementById('formCliente').reset();
   document.getElementById('clienteId').value = '';
@@ -2734,13 +2812,13 @@ function openClienteModal(id){
   }, 80);
 }
 function editCliente(id){
-  const perm = (getCurrentUser().permisos || PERMISOS_TOTAL).clientes;
+  const perm = permisosActuales().clientes;
   if(!perm.editar){ showToast('No tienes permiso para editar clientes'); return; }
   openClienteModal(id);
 }
 
 function deleteCliente(id){
-  const perm = (getCurrentUser().permisos || PERMISOS_TOTAL).clientes;
+  const perm = permisosActuales().clientes;
   if(!perm.eliminar){ showToast('No tienes permiso para eliminar clientes'); return; }
   if(!confirm('¿Eliminar este cliente? Esta acción no se puede deshacer.')) return;
   const c = getClientes().find(x=>x.id===id);
@@ -2946,6 +3024,7 @@ function renderPagosTable(filtro){
   tbody.innerHTML = clientes.map(c=>{
     const pagado = clienteYaPago(c.id, periodo);
     const pagoActual = pagado ? getPagos().find(p=>p.clienteId===c.id && normalizarPeriodo(p.periodo)===normalizarPeriodo(periodo)) : null;
+    const puedeRegistrar = esSuperAdmin() || permisosActuales().pagos.registrar;
     return `
     <tr>
       <td class="cell-strong">${c.nombre}</td>
@@ -2960,7 +3039,7 @@ function renderPagosTable(filtro){
       <td>
         ${pagado
           ? `<button class="btn btn-outline btn-small" type="button" onclick="verReciboExistente('${c.id}')">Ver Recibo</button>`
-          : `<button class="btn btn-green btn-small" type="button" onclick="abrirModalPago('${c.id}')">Registrar Pago</button>`
+          : (puedeRegistrar ? `<button class="btn btn-green btn-small" type="button" onclick="abrirModalPago('${c.id}')">Registrar Pago</button>` : '<span class="cell-muted">Sin permiso</span>')
         }
       </td>
     </tr>`;
@@ -2968,6 +3047,7 @@ function renderPagosTable(filtro){
 }
 
 function abrirModalPago(clienteId){
+  if(!(esSuperAdmin() || permisosActuales().pagos.registrar)){ showToast('No tienes permiso para registrar pagos'); return; }
   const c = getClientes().find(x=>x.id===clienteId);
   if(!c) return;
   document.getElementById('pClienteId').value = c.id;
@@ -2981,6 +3061,7 @@ function abrirModalPago(clienteId){
 
 document.getElementById('formPago').addEventListener('submit', function(e){
   e.preventDefault();
+  if(!(esSuperAdmin() || permisosActuales().pagos.registrar)){ showToast('No tienes permiso para registrar pagos'); return; }
   const clienteId = document.getElementById('pClienteId').value;
   const c = getClientes().find(x=>x.id===clienteId);
   if(!c) return;
@@ -3331,7 +3412,7 @@ function renderEquiposTable(){
   const clientes = getClientes();
   const tbody = document.getElementById('tablaEquipos');
   const empty = document.getElementById('equiposEmpty');
-  const perm = (getCurrentUser().permisos || PERMISOS_TOTAL).instalaciones;
+  const perm = permisosActuales().instalaciones;
   if(equipos.length===0){ tbody.innerHTML=''; empty.style.display='block'; return; }
   empty.style.display='none';
   tbody.innerHTML = equipos.map(e=>{
@@ -3359,7 +3440,7 @@ function renderEquiposTable(){
 }
 
 function openEquipoModal(id){
-  const perm = (getCurrentUser().permisos || PERMISOS_TOTAL).instalaciones;
+  const perm = permisosActuales().instalaciones;
   if(!id && !perm.crear){ showToast('No tienes permiso para crear equipos'); return; }
   document.getElementById('formEquipo').reset();
   document.getElementById('equipoId').value = '';
@@ -3381,13 +3462,13 @@ function openEquipoModal(id){
   document.getElementById('modalEquipo').classList.add('active');
 }
 function editEquipo(id){
-  const perm = (getCurrentUser().permisos || PERMISOS_TOTAL).instalaciones;
+  const perm = permisosActuales().instalaciones;
   if(!perm.editar){ showToast('No tienes permiso para editar equipos'); return; }
   openEquipoModal(id);
 }
 
 function deleteEquipo(id){
-  const perm = (getCurrentUser().permisos || PERMISOS_TOTAL).instalaciones;
+  const perm = permisosActuales().instalaciones;
   if(!perm.eliminar){ showToast('No tienes permiso para eliminar equipos'); return; }
   if(!confirm('¿Eliminar este equipo del inventario?')) return;
   const e = getEquipos().find(x=>x.id===id);
