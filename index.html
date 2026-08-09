@@ -943,8 +943,10 @@
           <label style="font-size:12.5px; color:var(--text-primary); margin-bottom:2px;">Pagos</label>
           <div style="display:flex; gap:16px; flex-wrap:wrap; font-size:12.5px; color:var(--text-muted);">
             <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" id="pPagosVer"> Ver pagos</label>
-            <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" id="pPagosRegistrar"> Registrar pagos (recaudar)</label>
+            <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" id="pPagosRegistrar"> Registrar pagos</label>
+            <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" id="pPagosEfectivo"> Recibir efectivo (recaudar)</label>
           </div>
+          <span class="cell-muted" style="font-size:11.5px; display:block; margin-top:4px;">Si "Registrar pagos" está marcado pero "Recibir efectivo" no, la persona puede registrar pagos únicamente por Transacción — no podrá marcar un pago como Efectivo.</span>
         </div>
         <div class="form-field full">
           <label style="font-size:12.5px; color:var(--text-primary); margin-bottom:2px;">Otros módulos</label>
@@ -1198,7 +1200,7 @@ const DB_KEY_CURRENT_USER = 'mce_current_user';
 const PERMISOS_TOTAL = {
   clientes:{ver:true, crear:true, editar:true, eliminar:true},
   instalaciones:{ver:true, crear:true, editar:true, eliminar:true},
-  pagos:{ver:true, registrar:true},
+  pagos:{ver:true, registrar:true, efectivo:true},
   planes:true, mapa:true, logs:true,
   usuarios:true, configuracion:true, descargarCodigo:true
 };
@@ -1206,19 +1208,19 @@ const PRESETS_USUARIO = {
   tecnico: {
     clientes:{ver:true, crear:true, editar:false, eliminar:false},
     instalaciones:{ver:true, crear:true, editar:false, eliminar:false},
-    pagos:{ver:false, registrar:false}, planes:false, mapa:false, logs:false,
+    pagos:{ver:false, registrar:false, efectivo:false}, planes:false, mapa:false, logs:false,
     usuarios:false, configuracion:false, descargarCodigo:false
   },
   cobrador: {
     clientes:{ver:true, crear:false, editar:false, eliminar:false},
     instalaciones:{ver:false, crear:false, editar:false, eliminar:false},
-    pagos:{ver:true, registrar:true}, planes:false, mapa:true, logs:false,
+    pagos:{ver:true, registrar:true, efectivo:true}, planes:false, mapa:true, logs:false,
     usuarios:false, configuracion:false, descargarCodigo:false
   },
   socio: {
     clientes:{ver:true, crear:true, editar:true, eliminar:true},
     instalaciones:{ver:true, crear:true, editar:true, eliminar:true},
-    pagos:{ver:true, registrar:false}, planes:true, mapa:true, logs:true,
+    pagos:{ver:true, registrar:true, efectivo:false}, planes:true, mapa:true, logs:true,
     usuarios:false, configuracion:true, descargarCodigo:false
   },
   total: PERMISOS_TOTAL
@@ -1226,12 +1228,22 @@ const PRESETS_USUARIO = {
 
 /* Completa cualquier permiso viejo o incompleto con valores por defecto seguros
    (ej. usuarios creados antes de que existiera "usuarios"/"configuracion"/"descargarCodigo",
-   o cuando "pagos" era un booleano en vez de {ver, registrar}). */
+   o cuando "pagos" era un booleano en vez de {ver, registrar, efectivo}). */
 function normalizarPermisos(permisos){
   const p = permisos || PERMISOS_TOTAL;
-  const pagosObj = (p.pagos && typeof p.pagos === 'object')
-    ? { ver: !!p.pagos.ver, registrar: !!p.pagos.registrar }
-    : { ver: !!p.pagos, registrar: !!p.pagos };
+  const pagosRaw = p.pagos;
+  let pagosObj;
+  if(pagosRaw && typeof pagosRaw === 'object'){
+    const registrar = !!pagosRaw.registrar;
+    // "efectivo" es nuevo: si el usuario ya existía y no lo tenía definido,
+    // se asume igual que "registrar" para no quitarle de sorpresa algo que
+    // ya podía hacer antes de que existiera este sub-permiso.
+    const efectivo = (pagosRaw.efectivo !== undefined) ? !!pagosRaw.efectivo : registrar;
+    pagosObj = { ver: !!pagosRaw.ver, registrar, efectivo };
+  } else {
+    const flag = !!pagosRaw;
+    pagosObj = { ver: flag, registrar: flag, efectivo: flag };
+  }
   return {
     clientes: p.clientes || { ver:false, crear:false, editar:false, eliminar:false },
     instalaciones: p.instalaciones || { ver:false, crear:false, editar:false, eliminar:false },
@@ -1379,6 +1391,7 @@ function aplicarPresetUsuario(preset){
   document.getElementById('pInstEliminar').checked = base.instalaciones.eliminar;
   document.getElementById('pPagosVer').checked = !!base.pagos.ver;
   document.getElementById('pPagosRegistrar').checked = !!base.pagos.registrar;
+  document.getElementById('pPagosEfectivo').checked = !!base.pagos.efectivo;
   document.getElementById('pPlanes').checked = !!base.planes;
   document.getElementById('pMapa').checked = !!base.mapa;
   document.getElementById('pLogs').checked = !!base.logs;
@@ -1404,6 +1417,7 @@ function leerPermisosFormUsuario(){
     pagos:{
       ver: document.getElementById('pPagosVer').checked,
       registrar: document.getElementById('pPagosRegistrar').checked,
+      efectivo: document.getElementById('pPagosEfectivo').checked,
     },
     planes: document.getElementById('pPlanes').checked,
     mapa: document.getElementById('pMapa').checked,
@@ -1431,7 +1445,11 @@ function resumenPermisos(permisos){
     if(p.instalaciones.eliminar) acciones.push('eliminar');
     partes.push('Instalaciones' + (acciones.length ? ' ('+acciones.join(', ')+')' : ' (solo ver)'));
   }
-  if(p.pagos.ver) partes.push('Pagos' + (p.pagos.registrar ? ' (ver y registrar)' : ' (solo ver)'));
+  if(p.pagos.ver){
+    let modo = 'solo ver';
+    if(p.pagos.registrar) modo = p.pagos.efectivo ? 'registrar, incl. efectivo' : 'registrar, solo transacción';
+    partes.push('Pagos (' + modo + ')');
+  }
   if(p.planes) partes.push('Planes');
   if(p.mapa) partes.push('Mapa');
   if(p.logs) partes.push('Logs');
@@ -1473,7 +1491,7 @@ function openUsuarioModal(id){
   document.getElementById('usuarioId').value = '';
   document.getElementById('usuarioModalTitle').textContent = 'Nuevo Usuario';
   aplicarPresetUsuario('');
-  ['pClienteVer','pClienteCrear','pClienteEditar','pClienteEliminar','pInstVer','pInstCrear','pInstEditar','pInstEliminar','pPagosVer','pPagosRegistrar','pPlanes','pMapa','pLogs','pUsuarios','pConfiguracion','pDescargarCodigo'].forEach(id=>{
+  ['pClienteVer','pClienteCrear','pClienteEditar','pClienteEliminar','pInstVer','pInstCrear','pInstEditar','pInstEliminar','pPagosVer','pPagosRegistrar','pPagosEfectivo','pPlanes','pMapa','pLogs','pUsuarios','pConfiguracion','pDescargarCodigo'].forEach(id=>{
     document.getElementById(id).checked = false;
   });
   if(id){
@@ -1495,6 +1513,7 @@ function openUsuarioModal(id){
       document.getElementById('pInstEliminar').checked = perm.instalaciones.eliminar;
       document.getElementById('pPagosVer').checked = perm.pagos.ver;
       document.getElementById('pPagosRegistrar').checked = perm.pagos.registrar;
+      document.getElementById('pPagosEfectivo').checked = perm.pagos.efectivo;
       document.getElementById('pPlanes').checked = perm.planes;
       document.getElementById('pMapa').checked = perm.mapa;
       document.getElementById('pLogs').checked = perm.logs;
@@ -3060,7 +3079,15 @@ function abrirModalPago(clienteId){
   document.getElementById('pClienteNombre').value = c.nombre + ' — ' + (c.vereda||'');
   document.getElementById('pPeriodo').value = periodoTexto(periodoActual());
   document.getElementById('pValor').value = c.precio;
-  document.getElementById('pFormaPago').value = 'Efectivo';
+
+  // Si la persona no tiene permiso de recibir efectivo (recaudar), solo puede
+  // registrar el pago como Transacción — se oculta la opción Efectivo.
+  const puedeEfectivo = esSuperAdmin() || permisosActuales().pagos.efectivo;
+  const selForma = document.getElementById('pFormaPago');
+  const optEfectivo = selForma.querySelector('option[value="Efectivo"]');
+  if(optEfectivo) optEfectivo.disabled = !puedeEfectivo;
+  selForma.value = puedeEfectivo ? 'Efectivo' : 'Transacción';
+
   document.getElementById('pAutorizadoPor').value = document.getElementById('pAutorizadoPor').value || 'Administrador';
   document.getElementById('modalRegistrarPago').classList.add('active');
 }
@@ -3068,6 +3095,9 @@ function abrirModalPago(clienteId){
 document.getElementById('formPago').addEventListener('submit', function(e){
   e.preventDefault();
   if(!(esSuperAdmin() || permisosActuales().pagos.registrar)){ showToast('No tienes permiso para registrar pagos'); return; }
+  if(document.getElementById('pFormaPago').value === 'Efectivo' && !(esSuperAdmin() || permisosActuales().pagos.efectivo)){
+    showToast('No tienes permiso para registrar pagos en efectivo'); return;
+  }
   const clienteId = document.getElementById('pClienteId').value;
   const c = getClientes().find(x=>x.id===clienteId);
   if(!c) return;
