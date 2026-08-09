@@ -344,11 +344,11 @@
     <form id="formLogin">
       <div class="form-field" style="margin-bottom:14px;">
         <label>Usuario</label>
-        <input type="text" id="loginUser" autocomplete="username" required placeholder="Usuario">
+        <input type="text" id="loginUser" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" required placeholder="Usuario">
       </div>
       <div class="form-field" style="margin-bottom:20px;">
         <label>Contraseña</label>
-        <input type="password" id="loginPass" autocomplete="current-password" required placeholder="Contraseña">
+        <input type="password" id="loginPass" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false" required placeholder="Contraseña">
       </div>
       <button type="submit" class="btn btn-primary" style="width:100%; justify-content:center;">Ingresar</button>
     </form>
@@ -763,6 +763,7 @@
           <button class="btn btn-primary" type="button" onclick="guardarConfigSync()">Guardar Configuración</button>
           <button class="btn btn-outline" type="button" onclick="probarConexionSync()">Probar Conexión</button>
           <button class="btn btn-outline" type="button" onclick="diagnosticarPagos()">Diagnóstico: ¿Por qué no llegan los pagos?</button>
+          <button class="btn btn-outline" type="button" onclick="diagnosticarUsuarios()">Diagnóstico: ¿Por qué no puede entrar el otro usuario?</button>
           <button class="btn btn-outline" type="button" onclick="sincronizarTodosClientes()">Sincronizar Todo Ahora (Clientes, Planes, Pagos, Equipos, Usuarios)</button>
           <button class="btn btn-green" type="button" onclick="importarDatosDesdeNube()">Importar / Actualizar Datos en Este Dispositivo</button>
         </div>
@@ -1307,11 +1308,14 @@ document.getElementById('formLogin').addEventListener('submit', function(e){
   const p = document.getElementById('loginPass').value;
   const err = document.getElementById('loginError');
 
-  if(u === APP_USER && p === APP_PASS){
+  // El nombre de usuario se compara sin importar mayúsculas/minúsculas — algunos
+  // teclados de celular ponen en mayúscula la primera letra automáticamente,
+  // y eso no debería impedir el inicio de sesión. La contraseña sí es exacta.
+  if(u.toLowerCase() === APP_USER.toLowerCase() && p === APP_PASS){
     loginComo({ id:'admin_root', nombre:'Administrador', usuario:APP_USER, permisos:PERMISOS_TOTAL });
     return;
   }
-  const match = getUsuarios().find(x=>x.usuario===u && x.password===p);
+  const match = getUsuarios().find(x=>x.usuario.toLowerCase()===u.toLowerCase() && x.password===p);
   if(match){
     loginComo(match);
     return;
@@ -1631,6 +1635,37 @@ async function diagnosticarPagos(){
       resumen += ' Está VACÍA: ningún pago ha llegado nunca a la Hoja. Revisa que "Sincronización automática" esté activada, o usa "Sincronizar Todo Ahora".';
     } else {
       resumen += ' Primeras filas: ' + JSON.stringify(data.muestra, null, 0);
+    }
+    mostrarEstadoSync(resumen, data.totalFilas > 0);
+  }catch(err){
+    mostrarEstadoSync('No se pudo conectar para el diagnóstico: ' + err.message, false);
+  }
+}
+
+async function diagnosticarUsuarios(){
+  const url = getSyncUrl();
+  if(!url){ showToast('Primero configura y guarda la URL del Web App'); return; }
+  mostrarEstadoSync('Consultando estado real de la hoja "Usuarios"...', true);
+  try{
+    const res = await fetch(url, {
+      method:'POST',
+      headers:{ 'Content-Type':'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action:'diagnosticoUsuarios' })
+    });
+    const data = await res.json();
+    if(!data || !data.ok){
+      mostrarEstadoSync('Error consultando diagnóstico: ' + (data && data.error || 'respuesta inesperada. Es muy probable que necesites descargar el código de nuevo e implementar una NUEVA VERSIÓN — este diagnóstico es una función nueva.'), false);
+      return;
+    }
+    if(!data.existeUsuariosSheet){
+      mostrarEstadoSync('❌ La pestaña "Usuarios" todavía no existe en tu Hoja. Eso significa que ningún usuario adicional se ha sincronizado nunca con éxito. Ve a Usuarios, guarda de nuevo al usuario (editar y "Guardar Usuario") con la sincronización activada, o usa "Sincronizar Todo Ahora" aquí abajo.', false);
+      return;
+    }
+    let resumen = `✔ La pestaña "Usuarios" existe y tiene ${data.totalFilas} usuario(s) guardado(s).`;
+    if(data.totalFilas === 0){
+      resumen += ' Está VACÍA. Usa "Sincronizar Todo Ahora" para subir los usuarios que ya creaste en este dispositivo.';
+    } else {
+      resumen += ' Usuarios en la Hoja: ' + data.muestra.map(u=>u.usuario).join(', ') + '. Si el usuario que buscas SÍ aparece en esta lista, el problema está en el otro dispositivo: entra a su Configuración, confirma que tiene pegada esta misma URL, y usa "Importar / Actualizar Datos en Este Dispositivo".';
     }
     mostrarEstadoSync(resumen, data.totalFilas > 0);
   }catch(err){
@@ -2284,6 +2319,23 @@ function doPost(e) {
       return respuesta({ ok: true, existePagosSheet: true, totalFilas: totalFilasDiag, muestra: muestraDiag, nombreHojaClientes: sheet.getName() });
     }
 
+    if (payload.action === 'diagnosticoUsuarios') {
+      var hojaDiagU = ss.getSheetByName('Usuarios');
+      if (!hojaDiagU) {
+        return respuesta({ ok: true, existeUsuariosSheet: false, totalFilas: 0, muestra: [] });
+      }
+      var datosDiagU = hojaDiagU.getDataRange().getValues();
+      var totalFilasDiagU = datosDiagU.length - 1; // sin contar encabezado
+      var muestraDiagU = [];
+      // Nunca se incluye la contraseña en este diagnóstico, por seguridad.
+      for (var e = 1; e < datosDiagU.length; e++) {
+        var filaDU = datosDiagU[e];
+        if (!filaDU[0]) continue;
+        muestraDiagU.push({ id: filaDU[0], nombre: filaDU[1], usuario: filaDU[2] });
+      }
+      return respuesta({ ok: true, existeUsuariosSheet: true, totalFilas: totalFilasDiagU, muestra: muestraDiagU });
+    }
+
     if (payload.action === 'ping') {
       return respuesta({ ok: true, mensaje: 'pong', version: VERSION_SCRIPT });
     }
@@ -2343,7 +2395,7 @@ function doPost(e) {
   }
 }
 
-var VERSION_SCRIPT = 'v9-2026-08-09-sync-usuarios';
+var VERSION_SCRIPT = 'v10-2026-08-09-diagnostico-usuarios';
 
 function doGet(e) {
   return respuesta({ ok: true, mensaje: 'MCE Sync API activa', version: VERSION_SCRIPT });
