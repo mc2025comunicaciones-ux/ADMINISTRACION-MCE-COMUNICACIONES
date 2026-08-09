@@ -497,6 +497,12 @@
               <span class="stat-value mono" id="statBloqueados" style="font-size:20px;">0</span>
             </div>
           </div>
+          <div class="stat-card" style="padding:16px 20px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+              <span class="badge badge-red">● Vencidos (morosos)</span>
+              <span class="stat-value mono" id="statVencidos" style="font-size:20px;">0</span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -623,13 +629,14 @@
         <div class="panel-head">
           <div>
             <h2>Mapa de Clientes</h2>
-            <div class="panel-sub">Ubica y reubica clientes arrastrando su marcador en el mapa</div>
+            <div class="panel-sub">Solo para consulta — toca un cliente para ver su información y copiar sus coordenadas. La ubicación se edita desde "Clientes"</div>
           </div>
         </div>
         <div style="display:flex; gap:18px; flex-wrap:wrap; margin-bottom:14px; font-size:12.5px; color:var(--text-muted);">
           <span style="display:flex; align-items:center; gap:6px;"><span style="width:12px;height:12px;border-radius:50%;background:#22c55e;display:inline-block;"></span> EDWIN</span>
           <span style="display:flex; align-items:center; gap:6px;"><span style="width:12px;height:12px;border-radius:50%;background:#2f6fed;display:inline-block;"></span> IVAN</span>
           <span style="display:flex; align-items:center; gap:6px;"><span style="width:12px;height:12px;border-radius:50%;background:#a855f7;display:inline-block;"></span> SOCIA</span>
+          <span style="display:flex; align-items:center; gap:6px;"><span style="width:12px;height:12px;border-radius:50%;background:#8b96bd;border:2px solid #ef4444;display:inline-block;"></span> Anillo rojo = vencido (moroso)</span>
         </div>
         <div id="mapaClientesBox"></div>
       </div>
@@ -2500,6 +2507,18 @@ function mostrarFechaCorte(cliente){
   return formatearFechaCorte(fecha);
 }
 
+/* Un cliente está vencido (moroso) cuando ya pasó su fecha de corte y todavía
+   no se le ha registrado el pago que la mueva hacia adelante. En cuanto se
+   registra el pago, la fecha avanza automáticamente y deja de estar vencido. */
+function estaVencido(cliente){
+  const fecha = asegurarFechaVencimiento(cliente);
+  if(!fecha) return false;
+  const hoy = new Date();
+  hoy.setHours(0,0,0,0);
+  const venc = new Date(fecha+'T00:00:00');
+  return venc < hoy;
+}
+
 /* ===================== NAVEGACIÓN ===================== */
 const titles = {
   inicio:['Inicio','Resumen operativo de tu red'],
@@ -2569,10 +2588,13 @@ function closeModal(id){
   document.getElementById(id).classList.remove('active');
   if(id === 'modalScan' || id === 'modalEquipo'){ detenerCodigoScan(); detenerOCRCamara(); }
 }
-function badgeForEstado(estado){
-  if(estado==='activo') return '<span class="badge badge-green">● Activo</span>';
+function badgeForEstado(cliente){
+  const estado = cliente && cliente.estado ? cliente.estado : cliente;
   if(estado==='suspendido') return '<span class="badge badge-orange">● Suspendido</span>';
-  return '<span class="badge badge-red">● Bloqueado</span>';
+  if(estado==='bloqueado') return '<span class="badge badge-red">● Bloqueado</span>';
+  // estado === 'activo': si ya pasó la fecha de pago sin registrar el pago, se muestra "Vencido" en rojo
+  if(typeof cliente === 'object' && estaVencido(cliente)) return '<span class="badge badge-red">● Vencido</span>';
+  return '<span class="badge badge-green">● Activo</span>';
 }
 /* Color e insignia por propietario del cliente: EDWIN = verde, IVAN = azul, SOCIA = morado */
 function colorPropietario(propietario){
@@ -2604,6 +2626,7 @@ function renderStats(){
   const activos = clientes.filter(c=>c.estado==='activo');
   const suspendidos = clientes.filter(c=>c.estado==='suspendido');
   const bloqueados = clientes.filter(c=>c.estado==='bloqueado');
+  const vencidos = activos.filter(c=>estaVencido(c));
 
   const recaudado = pagosMes.reduce((s,p)=>s+Number(p.valor||0),0);
   const clientesPagadosIds = new Set(pagosMes.map(p=>p.clienteId));
@@ -2619,6 +2642,7 @@ function renderStats(){
   document.getElementById('statActivos').textContent = activos.length;
   document.getElementById('statSuspendidos').textContent = suspendidos.length;
   document.getElementById('statBloqueados').textContent = bloqueados.length;
+  document.getElementById('statVencidos').textContent = vencidos.length;
 
   const tbody = document.getElementById('tablaInicioPagos');
   const empty = document.getElementById('inicioPagosEmpty');
@@ -2633,7 +2657,7 @@ function renderStats(){
       <td class="cell-strong">${c.nombre}</td>
       <td class="cell-muted">${c.vereda||'—'}</td>
       <td class="mono cell-muted">${mostrarFechaCorte(c)}</td>
-      <td>${pagado ? '<span class="badge badge-green">● Pagado</span>' : '<span class="badge badge-orange">● Pendiente</span>'}</td>
+      <td>${pagado ? '<span class="badge badge-green">● Pagado</span>' : (estaVencido(c) ? '<span class="badge badge-red">● Vencido</span>' : '<span class="badge badge-orange">● Pendiente</span>')}</td>
       <td>${pagado ? '' : '<button class="btn btn-green btn-small" type="button" onclick="abrirModalPago(\''+c.id+'\')">Registrar Pago</button>'}</td>
     </tr>`;
   }).join('');
@@ -2659,7 +2683,7 @@ function renderClientesTable(){
       <td><span class="badge badge-blue">${c.planNombre}</span><div class="cell-muted mono" style="margin-top:4px;">${fmtMoney(c.precio)}/mes</div></td>
       <td>${badgeForPropietario(c.propietario)}</td>
       <td class="mono cell-muted">${mostrarFechaCorte(c)}</td>
-      <td>${badgeForEstado(c.estado)}</td>
+      <td>${badgeForEstado(c)}</td>
       <td>
         <div class="row-actions">
           ${perm.editar ? `<button class="icon-btn" type="button" onclick="editCliente('${c.id}')" title="Editar">
@@ -2930,7 +2954,7 @@ function renderPagosTable(filtro){
       <td class="mono cell-muted">${fmtMoney(c.precio)}</td>
       <td>${badgeForPropietario(c.propietario)}</td>
       <td class="mono cell-muted">${mostrarFechaCorte(c)}</td>
-      <td>${pagado ? '<span class="badge badge-green">● Pagado</span>' : '<span class="badge badge-orange">● Pendiente</span>'}</td>
+      <td>${pagado ? '<span class="badge badge-green">● Pagado</span>' : (estaVencido(c) ? '<span class="badge badge-red">● Vencido</span>' : '<span class="badge badge-orange">● Pendiente</span>')}</td>
       <td class="cell-muted">${pagoActual ? (pagoActual.formaPago||'Efectivo') : '—'}</td>
       <td>${pagoActual ? (pagoActual.enviadoWhatsapp ? '<span class="badge badge-green">✔ Enviado</span>' : '<span class="badge badge-orange">✘ No enviado</span>') : '—'}</td>
       <td>
@@ -3227,6 +3251,29 @@ function actualizarEstadoEnvioRecibo(pago){
 }
 
 /* ===================== MAPA GENERAL ===================== */
+/* Copia "lat,lng" al portapapeles desde el popup del mapa (el mapa general es solo para consulta) */
+function copiarCoordenadas(lat, lng, nombre){
+  const texto = lat + ',' + lng;
+  const listo = () => showToast('Coordenadas de ' + nombre + ' copiadas: ' + texto);
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(texto).then(listo).catch(()=>{
+      copiarCoordenadasFallback(texto); listo();
+    });
+  } else {
+    copiarCoordenadasFallback(texto); listo();
+  }
+}
+function copiarCoordenadasFallback(texto){
+  const temp = document.createElement('textarea');
+  temp.value = texto;
+  temp.style.position = 'fixed';
+  temp.style.opacity = '0';
+  document.body.appendChild(temp);
+  temp.select();
+  try{ document.execCommand('copy'); }catch(e){}
+  document.body.removeChild(temp);
+}
+
 function initBigMap(){
   const clientes = getClientes();
   const withCoords = clientes.filter(c=>c.lat && c.lng);
@@ -3241,35 +3288,26 @@ function initBigMap(){
 
   withCoords.forEach(c=>{
     const color = colorPropietario(c.propietario);
+    const vencido = estaVencido(c);
+    const anillo = vencido ? 'border:3px solid #ef4444; box-shadow:0 0 0 3px rgba(239,68,68,0.35), 0 1px 4px rgba(0,0,0,0.5);' : 'border:2.5px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,0.5);';
     const icon = L.divIcon({
       className:'',
-      html:`<div style="width:16px;height:16px;border-radius:50%;background:${color};border:2.5px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.5)"></div>`,
+      html:`<div style="width:16px;height:16px;border-radius:50%;background:${color};${anillo}"></div>`,
       iconSize:[16,16], iconAnchor:[8,8]
     });
-    const marker = L.marker([c.lat,c.lng], {icon, draggable:true}).addTo(bigMapInstance);
+    const marker = L.marker([c.lat,c.lng], {icon, draggable:false}).addTo(bigMapInstance);
     marker.bindPopup(`
       <div class="popup-title">${c.nombre}</div>
       <div class="popup-line">Vereda: ${c.vereda||'—'}</div>
       <div class="popup-line">Tel: ${c.telefono||'—'} · WA: ${c.whatsapp||'—'}</div>
-      <div class="popup-line">Propietario: ${c.propietario||'—'} · Estado: ${c.estado||'—'}</div>
+      <div class="popup-line">Propietario: ${c.propietario||'—'} · Estado: ${vencido ? 'Vencido (moroso)' : (c.estado||'—')}</div>
       <span class="popup-plan">${c.planNombre}</span>
+      <div style="margin-top:8px;">
+        <button type="button" onclick="copiarCoordenadas(${c.lat}, ${c.lng}, '${c.nombre.replace(/'/g,"\\'")}')" style="width:100%; padding:6px 10px; border-radius:8px; border:1px solid rgba(120,150,255,0.3); background:rgba(47,111,237,0.12); color:#5b9dff; font-size:12px; font-weight:600; cursor:pointer; font-family:'Inter',sans-serif;">
+          Copiar coordenadas
+        </button>
+      </div>
     `);
-    marker.on('dragend', function(ev){
-      const p = ev.target.getLatLng();
-      const list = getClientes();
-      const idx = list.findIndex(x=>x.id===c.id);
-      if(idx>=0){
-        list[idx].lat = p.lat; list[idx].lng = p.lng;
-        setClientes(list);
-        showToast('Ubicación actualizada: '+c.nombre);
-        logAccion('Ubicación actualizada', c.nombre + ' (mapa)');
-        if(getSyncUrl() && getSyncAuto()){
-          syncClienteToSheet(list[idx]).then(r=>{
-            if(r && r.ok){ showToast('Coordenadas sincronizadas con la Hoja'); }
-          });
-        }
-      }
-    });
   });
 
   if(withCoords.length===0){
