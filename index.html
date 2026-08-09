@@ -193,6 +193,7 @@
   .badge-orange{ background:rgba(245,166,35,0.14); color:var(--warning);}
   .badge-red{ background:rgba(239,68,68,0.14); color:var(--danger);}
   .badge-blue{ background:rgba(47,111,237,0.16); color:var(--accent-light);}
+  .badge-purple{ background:rgba(168,85,247,0.16); color:#c084fc;}
   .row-actions{ display:flex; gap:8px; flex-wrap:wrap; }
   .icon-btn{ width:30px; height:30px; border-radius:8px; display:flex; align-items:center; justify-content:center; background:transparent; border:1px solid var(--border); color:var(--text-muted); cursor:pointer;}
   .icon-btn:hover{ color:var(--accent-light); border-color:var(--accent-light); }
@@ -536,7 +537,7 @@
           <table>
             <thead>
               <tr>
-                <th>Cliente</th><th>Vereda</th><th>Cédula</th><th>Teléfono / WhatsApp</th><th>Plan</th><th>Corte</th><th>Estado</th><th></th>
+                <th>Cliente</th><th>Vereda</th><th>Cédula</th><th>Teléfono / WhatsApp</th><th>Plan</th><th>Propietario</th><th>Corte</th><th>Estado</th><th></th>
               </tr>
             </thead>
             <tbody id="tablaClientes"></tbody>
@@ -596,7 +597,7 @@
         <div style="overflow-x:auto;">
           <table>
             <thead>
-              <tr><th>Cliente</th><th>Vereda</th><th>Plan</th><th>Valor</th><th>Corte</th><th>Estado (mes actual)</th><th></th></tr>
+              <tr><th>Cliente</th><th>Vereda</th><th>Plan</th><th>Valor</th><th>Propietario</th><th>Corte</th><th>Estado (mes actual)</th><th>Forma de pago</th><th>Enviado WA</th><th></th></tr>
             </thead>
             <tbody id="tablaPagos"></tbody>
           </table>
@@ -604,6 +605,15 @@
             <p>No se encontraron clientes con ese criterio de búsqueda.</p>
           </div>
         </div>
+      </div>
+      <div class="panel" id="panelResumenPagos">
+        <div class="panel-head">
+          <div>
+            <h2>Resumen del Mes</h2>
+            <div class="panel-sub" id="resumenPagosSub">Totales del periodo actual por forma de pago y por propietario</div>
+          </div>
+        </div>
+        <div class="grid-cards" id="resumenPagosGrid" style="margin-bottom:0;"></div>
       </div>
     </section>
 
@@ -615,6 +625,11 @@
             <h2>Mapa de Clientes</h2>
             <div class="panel-sub">Ubica y reubica clientes arrastrando su marcador en el mapa</div>
           </div>
+        </div>
+        <div style="display:flex; gap:18px; flex-wrap:wrap; margin-bottom:14px; font-size:12.5px; color:var(--text-muted);">
+          <span style="display:flex; align-items:center; gap:6px;"><span style="width:12px;height:12px;border-radius:50%;background:#22c55e;display:inline-block;"></span> EDWIN</span>
+          <span style="display:flex; align-items:center; gap:6px;"><span style="width:12px;height:12px;border-radius:50%;background:#2f6fed;display:inline-block;"></span> IVAN</span>
+          <span style="display:flex; align-items:center; gap:6px;"><span style="width:12px;height:12px;border-radius:50%;background:#a855f7;display:inline-block;"></span> SOCIA</span>
         </div>
         <div id="mapaClientesBox"></div>
       </div>
@@ -755,35 +770,16 @@
       <div class="panel">
         <div class="panel-head">
           <div>
-            <h2>Cómo activarlo (una sola vez)</h2>
-            <div class="panel-sub">5 minutos, no necesitas saber programación</div>
+            <h2>Código del Puente (Apps Script)</h2>
+            <div class="panel-sub">Descárgalo y pégalo en Extensiones → Apps Script de tu Hoja de Google, cada vez que se actualice</div>
           </div>
           <button class="btn btn-outline btn-small" type="button" onclick="descargarCodigoAppsScript()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
             Descargar código (Code.gs)
           </button>
         </div>
-        <ol style="padding-left:20px; font-size:13px; color:var(--text-muted); line-height:2;">
-          <li>Abre tu Hoja de Google de clientes (la misma que usa tu página pública) en <span class="mono" style="color:var(--accent-light);">sheets.google.com</span>.</li>
-          <li>Ve a <b>Extensiones → Apps Script</b>.</li>
-          <li>Borra el contenido que aparece y pega el código del botón "Descargar código" de arriba.</li>
-          <li>Guarda (ícono de disco). Arriba, en el menú desplegable de funciones, elige <b>autorizarPermisos</b> y presiona <b>▶ Ejecutar</b>.</li>
-          <li>Google te va a pedir autorización. Elige tu cuenta → si aparece "Google no verificó esta app", haz clic en <b>Configuración avanzada</b> → <b>Ir a [nombre del proyecto] (no seguro)</b> → <b>Permitir</b>. Esto es normal porque es tu propio script, no de un tercero.</li>
-          <li>Revisa en "Ver → Registros" que diga "Permisos concedidos correctamente" y no un error.</li>
-          <li>Ahora sí: <b>Implementar → Nueva implementación</b>, tipo <b>Aplicación web</b>.</li>
-          <li>Muy importante: <b>Ejecutar como</b> debe ser <b>Yo (tu correo)</b> — nunca "Usuario que accede a la app web". <b>Quién tiene acceso</b> debe ser <b>Cualquier usuario</b>. Haz clic en <b>Implementar</b>.</li>
-          <li>Copia la URL que te da (termina en <span class="mono">/exec</span>) y pégala arriba en "URL del Web App", luego "Guardar Configuración" y "Probar Conexión".</li>
-        </ol>
-        <div class="coord-display" style="margin-top:16px; color:var(--danger); background:rgba(239,68,68,0.1); border-color:rgba(239,68,68,0.3); align-items:flex-start; line-height:1.6;">
-          <b style="display:block; margin-bottom:6px;">¿Te sale el error "You do not have permission to call SpreadsheetApp.openById"?</b>
-          Significa que el script nunca completó el paso de autorización (paso 4-6 de arriba), o que en el paso 8 elegiste "Usuario que accede a la app web" en vez de "Yo". Repite esos pasos exactamente: ejecuta <span class="mono">autorizarPermisos</span> manualmente desde el editor, acepta los permisos, y vuelve a implementar con "Ejecutar como: Yo". Después de corregirlo, ve a <b>Implementar → Administrar implementaciones</b>, edita tu implementación activa, "Nueva versión" → <b>Implementar</b> (la URL no cambia).
-        </div>
-        <div class="coord-display" style="margin-top:16px; color:var(--accent-cyan); align-items:flex-start; line-height:1.6;">
-          <b style="display:block; margin-bottom:6px;">¿Ya lo habías configurado antes y los recibos no le aparecen al cliente?</b>
-          Descarga el código de nuevo (ya incluye la corrección), sigue los pasos de autorización de arriba, y luego ve a <b>Implementar → Administrar implementaciones</b>, edita tu implementación activa, "Nueva versión" → <b>Implementar</b>. Luego usa "Probar Conexión" aquí y finalmente "Sincronizar Todos los Clientes Ahora" para que los clientes que ya tenías creados generen su fila en la Hoja.
-        </div>
-        <div class="coord-display" style="margin-top:16px; color:var(--warning); background:rgba(245,166,35,0.1); border-color:rgba(245,166,35,0.3); align-items:flex-start; line-height:1.6;">
-          Nota honesta: esta sincronización solo ocurre cuando tú (o tu equipo) guarda datos desde este panel con conexión a internet. No es un servidor propio ni una base de datos en tiempo real — es el mismo mecanismo gratuito que ya usa tu página pública. Si el navegador donde tienes abierto el panel no tiene internet en ese momento, ese cliente no se sincroniza hasta que uses "Sincronizar Todos los Clientes Ahora".
+        <div class="coord-display" style="color:var(--warning); background:rgba(245,166,35,0.1); border-color:rgba(245,166,35,0.3); align-items:flex-start; line-height:1.6;">
+          Nota honesta: esta sincronización solo ocurre cuando tú (o tu equipo) guarda datos desde este panel con conexión a internet. No es un servidor propio ni una base de datos en tiempo real — es el mismo mecanismo gratuito que ya usa tu página pública. Si el navegador donde tienes abierto el panel no tiene internet en ese momento, ese cliente no se sincroniza hasta que uses "Sincronizar Todo Ahora".
         </div>
       </div>
     </section>
@@ -825,6 +821,14 @@
             <option value="activo">Activo</option>
             <option value="suspendido">Suspendido</option>
             <option value="bloqueado">Bloqueado</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label>Propietario del cliente</label>
+          <select id="cPropietario" required>
+            <option value="EDWIN">EDWIN</option>
+            <option value="IVAN">IVAN</option>
+            <option value="SOCIA">SOCIA</option>
           </select>
         </div>
         <div class="form-field">
@@ -1083,6 +1087,13 @@
           <label>Valor a pagar (COP)</label>
           <input type="number" id="pValor" required>
         </div>
+        <div class="form-field">
+          <label>Forma de pago</label>
+          <select id="pFormaPago" required>
+            <option value="Efectivo">Efectivo</option>
+            <option value="Transacción">Transacción</option>
+          </select>
+        </div>
         <div class="form-field full">
           <label>Autorizado por</label>
           <input type="text" id="pAutorizadoPor" required placeholder="Ej: EDWIN MUÑOZ MOTTA">
@@ -1112,6 +1123,8 @@
       <div class="r-line" id="rDireccion">Dirección: —</div>
       <div class="r-line" id="rPlan">Plan: —</div>
       <div class="r-line" id="rPeriodo">Periodo: —</div>
+      <div class="r-line" id="rFormaPago">Forma de pago: —</div>
+      <div class="r-line" id="rEnviadoWA" style="display:none; color:var(--success); font-weight:600;"></div>
       <table style="width:100%;">
         <thead><tr><th>Concepto</th><th>Valor</th></tr></thead>
         <tbody>
@@ -1607,7 +1620,8 @@ async function syncClienteToSheet(cliente){
       lat: (cliente.lat!=null && cliente.lat!=='') ? cliente.lat : '',
       lng: (cliente.lng!=null && cliente.lng!=='') ? cliente.lng : '',
       telefono: cliente.telefono || '',
-      whatsapp: cliente.whatsapp || ''
+      whatsapp: cliente.whatsapp || '',
+      propietario: cliente.propietario || ''
     }
   };
   try{
@@ -1660,6 +1674,9 @@ async function syncPagoToSheet(cliente, pago){
   const payload = { action:'upsertPago', data:{
     id: pago.id, cedulaCliente: cliente.cedula, nombreCliente: cliente.nombre,
     periodo: pago.periodo, fecha: pago.fecha, valor: pago.valor,
+    formaPago: pago.formaPago || 'Efectivo',
+    enviadoWhatsapp: pago.enviadoWhatsapp ? 'SI' : 'NO',
+    fechaEnvioWhatsapp: pago.fechaEnvioWhatsapp || '',
     autorizadoPor: pago.autorizadoPor, numero: pago.numero
   }};
   try{
@@ -1737,6 +1754,7 @@ async function importarDatosDesdeNube(){
         // un valor no vacío, para no borrar datos que solo existan localmente.
         if (rc.telefono) local.telefono = rc.telefono;
         if (rc.whatsapp) local.whatsapp = rc.whatsapp;
+        if (rc.propietario) local.propietario = rc.propietario;
         // Solo se reemplazan las coordenadas si la Hoja trae unas válidas,
         // así no se borra una ubicación marcada localmente si en la Hoja
         // ese cliente todavía no tiene columna J llena.
@@ -1750,7 +1768,8 @@ async function importarDatosDesdeNube(){
           planId: planCoincidente ? planCoincidente.id : null,
           planNombre: rc.plan || 'Sin plan', planVelocidad: planCoincidente ? planCoincidente.velocidad : 0,
           precio: Number(rc.valor||0), puntoConexion: rc.puntoConexion || '',
-          lat: (rc.lat != null ? rc.lat : null), lng: (rc.lng != null ? rc.lng : null)
+          lat: (rc.lat != null ? rc.lat : null), lng: (rc.lng != null ? rc.lng : null),
+          propietario: rc.propietario || 'EDWIN'
         };
         clientesLocales.push(local);
         mapaClientesPorCedula[cedulaKey] = local;
@@ -1758,15 +1777,29 @@ async function importarDatosDesdeNube(){
     });
     setClientes(clientesLocales);
 
-    // ---- Pagos: se fusionan por id (si no existe localmente, se crea) ----
+    // ---- Pagos: se fusionan por id. Si ya existe localmente, solo se
+    // actualiza si el envío por WhatsApp llegó marcado desde la nube (así
+    // el envío hecho en un dispositivo se refleja en el otro al importar) ----
     const pagosLocales = getPagos();
-    const idsPagosLocales = new Set(pagosLocales.map(p=>p.id));
+    const mapaPagosPorId = {};
+    pagosLocales.forEach(p=> mapaPagosPorId[p.id] = p);
     (remoto.pagos||[]).forEach(rp=>{
-      if(idsPagosLocales.has(rp.id)) return;
       const clienteAsoc = mapaClientesPorCedula[limpiarCedulaJS(rp.cedulaCliente)];
+      const enviadoRemoto = String(rp.enviadoWhatsapp||'').trim().toUpperCase() === 'SI';
+      const local = mapaPagosPorId[rp.id];
+      if(local){
+        if(enviadoRemoto && !local.enviadoWhatsapp){
+          local.enviadoWhatsapp = true;
+          local.fechaEnvioWhatsapp = rp.fechaEnvioWhatsapp || local.fechaEnvioWhatsapp || new Date().toISOString();
+        }
+        return;
+      }
       pagosLocales.push({
         id: rp.id, clienteId: clienteAsoc ? clienteAsoc.id : null,
         periodo: rp.periodo, fecha: rp.fecha, valor: Number(rp.valor||0),
+        formaPago: rp.formaPago || 'Efectivo',
+        enviadoWhatsapp: enviadoRemoto,
+        fechaEnvioWhatsapp: rp.fechaEnvioWhatsapp || '',
         autorizadoPor: rp.autorizadoPor, numero: rp.numero
       });
     });
@@ -1905,12 +1938,13 @@ function doPost(e) {
         // criterio que las coordenadas: no borrar lo ya guardado).
         if (d.telefono) { sheet.getRange(fila, 11).setValue(d.telefono); }
         if (d.whatsapp) { sheet.getRange(fila, 12).setValue(d.whatsapp); }
+        if (d.propietario) { sheet.getRange(fila, 13).setValue(d.propietario); }
       } else {
         var filaNueva = sheet.getLastRow() + 1;
         sheet.appendRow([
           d.nombre || '', cedula, d.plan || '', d.estado || '',
           '', '', d.vereda || '', '', d.puntoConexion || '', coordsStr,
-          d.telefono || '', d.whatsapp || ''
+          d.telefono || '', d.whatsapp || '', d.propietario || ''
         ]);
         if (fechaObj) { sheet.getRange(filaNueva, 5).setNumberFormat('d/MM/yyyy').setValue(fechaObj); }
         sheet.getRange(filaNueva, 6).setNumberFormat('"$"#,##0').setValue(valorNum);
@@ -1929,10 +1963,10 @@ function doPost(e) {
     }
 
     if (payload.action === 'upsertPago') {
-      var hojaPagos = obtenerHoja(ss, 'Pagos', ['id','cedulaCliente','nombreCliente','periodo','fecha','valor','autorizadoPor','numero']);
+      var hojaPagos = obtenerHoja(ss, 'Pagos', ['id','cedulaCliente','nombreCliente','periodo','fecha','valor','autorizadoPor','numero','formaPago','enviadoWhatsapp','fechaEnvioWhatsapp']);
       var dg = payload.data;
       var filaG = buscarFilaPorId(hojaPagos, dg.id);
-      var valoresG = [dg.id || '', dg.cedulaCliente || '', dg.nombreCliente || '', dg.periodo || '', dg.fecha || '', Number(dg.valor || 0), dg.autorizadoPor || '', dg.numero || ''];
+      var valoresG = [dg.id || '', dg.cedulaCliente || '', dg.nombreCliente || '', dg.periodo || '', dg.fecha || '', Number(dg.valor || 0), dg.autorizadoPor || '', dg.numero || '', dg.formaPago || 'Efectivo', dg.enviadoWhatsapp || 'NO', dg.fechaEnvioWhatsapp || ''];
       var filaDestinoG = (filaG > 0) ? filaG : (hojaPagos.getLastRow() + 1);
       // Las columnas "periodo" (D) y "fecha" (E) se fuerzan a texto plano ANTES
       // de escribir el valor, porque si no, Sheets convierte solo "2026-08" en
@@ -1992,7 +2026,8 @@ function doPost(e) {
           lat: latVal,
           lng: lngVal,
           telefono: filaDatos[10] || '',
-          whatsapp: filaDatos[11] || ''
+          whatsapp: filaDatos[11] || '',
+          propietario: filaDatos[12] || ''
         });
       }
 
@@ -2026,7 +2061,8 @@ function doPost(e) {
             id: fg2[0], cedulaCliente: fg2[1] || '', nombreCliente: fg2[2] || '',
             periodo: periodoStr,
             fecha: (fechaPago instanceof Date) ? Utilities.formatDate(fechaPago, Session.getScriptTimeZone(), 'yyyy-MM-dd') : (fechaPago || ''),
-            valor: Number(fg2[5] || 0), autorizadoPor: fg2[6] || '', numero: fg2[7] || ''
+            valor: Number(fg2[5] || 0), autorizadoPor: fg2[6] || '', numero: fg2[7] || '', formaPago: fg2[8] || 'Efectivo',
+            enviadoWhatsapp: fg2[9] || 'NO', fechaEnvioWhatsapp: fg2[10] || ''
           });
         }
       }
@@ -2074,13 +2110,13 @@ function doPost(e) {
       var cedulaBuscar = String(payload.cedula || '').trim();
       var filaBuscar = buscarFilaPorCedula(sheet, cedulaBuscar);
       if (filaBuscar > 0) {
-        var valores = sheet.getRange(filaBuscar, 1, 1, 12).getValues()[0];
+        var valores = sheet.getRange(filaBuscar, 1, 1, 13).getValues()[0];
         return respuesta({
           ok: true, encontrado: true, fila: filaBuscar,
           nombre: valores[0], cedula: valores[1], plan: valores[2], estado: valores[3],
           vencimiento: valores[4], valor: valores[5], vereda: valores[6],
           recibo: valores[7], puntoConexion: valores[8], coordenadas: valores[9] || '',
-          telefono: valores[10] || '', whatsapp: valores[11] || '',
+          telefono: valores[10] || '', whatsapp: valores[11] || '', propietario: valores[12] || '',
           totalFilas: sheet.getLastRow(), nombreHoja: sheet.getName()
         });
       }
@@ -2125,7 +2161,7 @@ function doPost(e) {
   }
 }
 
-var VERSION_SCRIPT = 'v6-2026-08-04-diagnostico-pagos';
+var VERSION_SCRIPT = 'v8-2026-08-09-envio-whatsapp';
 
 function doGet(e) {
   return respuesta({ ok: true, mensaje: 'MCE Sync API activa', version: VERSION_SCRIPT });
@@ -2538,6 +2574,19 @@ function badgeForEstado(estado){
   if(estado==='suspendido') return '<span class="badge badge-orange">● Suspendido</span>';
   return '<span class="badge badge-red">● Bloqueado</span>';
 }
+/* Color e insignia por propietario del cliente: EDWIN = verde, IVAN = azul, SOCIA = morado */
+function colorPropietario(propietario){
+  if(propietario==='EDWIN') return '#22c55e';
+  if(propietario==='IVAN') return '#2f6fed';
+  if(propietario==='SOCIA') return '#a855f7';
+  return '#8b96bd';
+}
+function badgeForPropietario(propietario){
+  if(propietario==='EDWIN') return '<span class="badge badge-green">EDWIN</span>';
+  if(propietario==='IVAN') return '<span class="badge badge-blue">IVAN</span>';
+  if(propietario==='SOCIA') return '<span class="badge badge-purple">SOCIA</span>';
+  return '<span class="badge">—</span>';
+}
 function clienteYaPago(clienteId, periodo){
   const periodoNorm = normalizarPeriodo(periodo);
   return getPagos().some(p=>p.clienteId===clienteId && normalizarPeriodo(p.periodo)===periodoNorm);
@@ -2608,6 +2657,7 @@ function renderClientesTable(){
         <div class="cell-muted">WA: ${c.whatsapp||'—'}</div>
       </td>
       <td><span class="badge badge-blue">${c.planNombre}</span><div class="cell-muted mono" style="margin-top:4px;">${fmtMoney(c.precio)}/mes</div></td>
+      <td>${badgeForPropietario(c.propietario)}</td>
       <td class="mono cell-muted">${mostrarFechaCorte(c)}</td>
       <td>${badgeForEstado(c.estado)}</td>
       <td>
@@ -2648,6 +2698,7 @@ function openClienteModal(id){
         document.getElementById('cTelefono').value = c.telefono;
         document.getElementById('cWhatsapp').value = c.whatsapp;
         document.getElementById('cEstado').value = c.estado;
+        document.getElementById('cPropietario').value = c.propietario || 'EDWIN';
         document.getElementById('cCorte').value = c.corte || '';
         document.getElementById('cFechaCorte').value = asegurarFechaVencimiento(c);
         document.getElementById('cPrecio').value = c.precio;
@@ -2723,6 +2774,7 @@ document.getElementById('formCliente').addEventListener('submit', function(e){
     id, nombre, cedula, vereda, telefono,
     whatsapp: document.getElementById('cWhatsapp').value.trim(),
     estado: document.getElementById('cEstado').value,
+    propietario: document.getElementById('cPropietario').value || 'EDWIN',
     corte,
     fechaVencimiento,
     planId,
@@ -2813,7 +2865,49 @@ function usarMiUbicacion(){
 }
 
 /* ===================== PAGOS ===================== */
+/* Suma lo recaudado este mes por forma de pago (Efectivo/Transacción) y por
+   propietario (EDWIN/IVAN/SOCIA), para llevar cuentas claras entre los dos. */
+function renderResumenPagos(){
+  const grid = document.getElementById('resumenPagosGrid');
+  if(!grid) return;
+  const clientes = getClientes();
+  const periodo = periodoActual();
+  const periodoNorm = normalizarPeriodo(periodo);
+  const pagosMes = getPagos().filter(p=>normalizarPeriodo(p.periodo)===periodoNorm);
+  document.getElementById('resumenPagosSub').textContent = 'Periodo actual: ' + periodoTexto(periodo);
+
+  const sumas = { Efectivo:0, 'Transacción':0, EDWIN:0, IVAN:0, SOCIA:0 };
+  const conteos = { Efectivo:0, 'Transacción':0, EDWIN:0, IVAN:0, SOCIA:0 };
+  pagosMes.forEach(p=>{
+    const forma = (p.formaPago==='Transacción') ? 'Transacción' : 'Efectivo';
+    sumas[forma] += Number(p.valor||0);
+    conteos[forma]++;
+    const c = clientes.find(x=>x.id===p.clienteId);
+    const prop = c ? c.propietario : null;
+    if(prop && sumas.hasOwnProperty(prop)){
+      sumas[prop] += Number(p.valor||0);
+      conteos[prop]++;
+    }
+  });
+
+  const tarjeta = (label, valor, nota, iconClass) => `
+    <div class="stat-card">
+      <div class="stat-icon ${iconClass}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div>
+      <div class="stat-label">${label}</div>
+      <div class="stat-value">${fmtMoney(valor)}</div>
+      <div class="stat-note">${nota}</div>
+    </div>`;
+
+  grid.innerHTML =
+    tarjeta('Efectivo', sumas.Efectivo, conteos.Efectivo + ' pago(s)', 'icon-green') +
+    tarjeta('Transacción', sumas['Transacción'], conteos['Transacción'] + ' pago(s)', 'icon-cyan') +
+    tarjeta('Clientes de EDWIN', sumas.EDWIN, conteos.EDWIN + ' pago(s)', 'icon-green') +
+    tarjeta('Clientes de IVAN', sumas.IVAN, conteos.IVAN + ' pago(s)', 'icon-blue') +
+    tarjeta('Clientes de SOCIA', sumas.SOCIA, conteos.SOCIA + ' pago(s)', 'icon-orange');
+}
+
 function renderPagosTable(filtro){
+  renderResumenPagos();
   filtro = (filtro||'').toLowerCase().trim();
   const clientes = getClientes().filter(c=>{
     if(!filtro) return true;
@@ -2827,14 +2921,18 @@ function renderPagosTable(filtro){
 
   tbody.innerHTML = clientes.map(c=>{
     const pagado = clienteYaPago(c.id, periodo);
+    const pagoActual = pagado ? getPagos().find(p=>p.clienteId===c.id && normalizarPeriodo(p.periodo)===normalizarPeriodo(periodo)) : null;
     return `
     <tr>
       <td class="cell-strong">${c.nombre}</td>
       <td class="cell-muted">${c.vereda||'—'}</td>
       <td><span class="badge badge-blue">${c.planNombre}</span></td>
       <td class="mono cell-muted">${fmtMoney(c.precio)}</td>
+      <td>${badgeForPropietario(c.propietario)}</td>
       <td class="mono cell-muted">${mostrarFechaCorte(c)}</td>
       <td>${pagado ? '<span class="badge badge-green">● Pagado</span>' : '<span class="badge badge-orange">● Pendiente</span>'}</td>
+      <td class="cell-muted">${pagoActual ? (pagoActual.formaPago||'Efectivo') : '—'}</td>
+      <td>${pagoActual ? (pagoActual.enviadoWhatsapp ? '<span class="badge badge-green">✔ Enviado</span>' : '<span class="badge badge-orange">✘ No enviado</span>') : '—'}</td>
       <td>
         ${pagado
           ? `<button class="btn btn-outline btn-small" type="button" onclick="verReciboExistente('${c.id}')">Ver Recibo</button>`
@@ -2852,6 +2950,7 @@ function abrirModalPago(clienteId){
   document.getElementById('pClienteNombre').value = c.nombre + ' — ' + (c.vereda||'');
   document.getElementById('pPeriodo').value = periodoTexto(periodoActual());
   document.getElementById('pValor').value = c.precio;
+  document.getElementById('pFormaPago').value = 'Efectivo';
   document.getElementById('pAutorizadoPor').value = document.getElementById('pAutorizadoPor').value || 'Administrador';
   document.getElementById('modalRegistrarPago').classList.add('active');
 }
@@ -2868,6 +2967,7 @@ document.getElementById('formPago').addEventListener('submit', function(e){
     periodo: periodoActual(),
     fecha: new Date().toISOString(),
     valor: Number(document.getElementById('pValor').value || c.precio),
+    formaPago: document.getElementById('pFormaPago').value || 'Efectivo',
     autorizadoPor: document.getElementById('pAutorizadoPor').value.trim() || 'Administrador',
     numero: nextReciboNumero()
   };
@@ -2892,7 +2992,7 @@ document.getElementById('formPago').addEventListener('submit', function(e){
   renderStats();
   mostrarRecibo(c, pago);
   showToast('Pago registrado. Próximo corte: ' + formatearFechaCorte(nuevaFecha));
-  logAccion('Pago registrado', c.nombre + ' — ' + fmtMoney(pago.valor) + ' (Recibo N° ' + pago.numero + '). Próximo corte: ' + formatearFechaCorte(nuevaFecha));
+  logAccion('Pago registrado', c.nombre + ' — ' + fmtMoney(pago.valor) + ' en ' + pago.formaPago + ' (Recibo N° ' + pago.numero + '). Próximo corte: ' + formatearFechaCorte(nuevaFecha));
 
   // Genera y descarga el PDF automáticamente al confirmar el pago
   // (esto también sincroniza la nueva fecha de corte en la Hoja de Google)
@@ -2931,6 +3031,7 @@ function mostrarRecibo(cliente, pago){
   document.getElementById('rDireccion').textContent = 'Dirección: ' + (cliente.vereda || '—');
   document.getElementById('rPlan').textContent = 'Plan: ' + cliente.planNombre;
   document.getElementById('rPeriodo').textContent = 'Periodo: ' + periodoTexto(pago.periodo);
+  document.getElementById('rFormaPago').textContent = 'Forma de pago: ' + (pago.formaPago || 'Efectivo');
   document.getElementById('rValor').textContent = fmtMoney(pago.valor);
   document.getElementById('rTotal').textContent = fmtMoney(pago.valor);
   document.getElementById('rAutorizado').textContent = pago.autorizadoPor;
@@ -2938,8 +3039,10 @@ function mostrarRecibo(cliente, pago){
   document.getElementById('btnEnviarWA').dataset.clienteId = cliente.id;
   document.getElementById('btnEnviarWA').dataset.pagoId = pago.id;
   document.getElementById('btnEnviarWA').style.display = cliente.whatsapp ? 'inline-flex' : 'none';
+  document.getElementById('btnEnviarWA').innerHTML = document.getElementById('btnEnviarWA').innerHTML.replace('Reenviar por WhatsApp','Enviar por WhatsApp');
   document.getElementById('btnDescargarPDF').dataset.clienteId = cliente.id;
   document.getElementById('btnDescargarPDF').dataset.pagoId = pago.id;
+  actualizarEstadoEnvioRecibo(pago);
 
   document.getElementById('reciboPrintWrap').classList.add('active');
 }
@@ -2988,7 +3091,8 @@ function generarPDFRecibo(cliente, pago){
     doc.text(`Cliente: ${cliente.nombre}`, 10, y); y += 5.5;
     doc.text(`Dirección: ${cliente.vereda || '—'}`, 10, y); y += 5.5;
     doc.text(`Plan: ${cliente.planNombre}`, 10, y); y += 5.5;
-    doc.text(`Periodo: ${periodoTexto(pago.periodo)}`, 10, y); y += 8;
+    doc.text(`Periodo: ${periodoTexto(pago.periodo)}`, 10, y); y += 5.5;
+    doc.text(`Forma de pago: ${pago.formaPago || 'Efectivo'}`, 10, y); y += 8;
 
     // Tabla
     const tableX = 10, tableW = pageW-20, rowH = 8;
@@ -3083,6 +3187,7 @@ Cliente: ${c.nombre}
 Dirección: ${c.vereda||'—'}
 Plan: ${c.planNombre}
 Periodo: ${periodoTexto(pago.periodo)}
+Forma de pago: ${pago.formaPago || 'Efectivo'}
 
 Servicio Internet: ${fmtMoney(pago.valor)}
 *Total: ${fmtMoney(pago.valor)}*
@@ -3091,13 +3196,34 @@ Autorizado por: ${pago.autorizadoPor}
 
 ¡Gracias por su pago puntual!`;
 
-  // Descarga el PDF automáticamente para que quede listo y solo haya que adjuntarlo
-  generarPDFRecibo(c, pago);
+  // Marca el recibo como enviado por WhatsApp (queda visible para todos al importar)
+  pago.enviadoWhatsapp = true;
+  pago.fechaEnvioWhatsapp = new Date().toISOString();
+  const pagosGuardar = getPagos();
+  const idxPago = pagosGuardar.findIndex(p=>p.id===pago.id);
+  if(idxPago>=0){ pagosGuardar[idxPago] = pago; setPagos(pagosGuardar); }
 
   const url = `https://wa.me/${numero}?text=${encodeURIComponent(mensaje)}`;
   window.open(url, '_blank');
-  showToast('PDF descargado y WhatsApp abierto — adjunta el PDF descargado y presiona enviar');
+  showToast('WhatsApp abierto — adjunta el PDF del recibo (descárgalo con el botón "Descargar PDF" si no lo tienes) y presiona enviar');
   logAccion('Recibo enviado por WhatsApp', c.nombre + ' — Recibo N° ' + pago.numero);
+  renderPagosTable(document.getElementById('buscarPago').value);
+  actualizarEstadoEnvioRecibo(pago);
+
+  if(getSyncUrl() && getSyncAuto()){ syncPagoToSheet(c, pago); }
+}
+
+/* Refleja en el modal del recibo si ya se envió por WhatsApp, y ajusta el botón */
+function actualizarEstadoEnvioRecibo(pago){
+  const btn = document.getElementById('btnEnviarWA');
+  const badge = document.getElementById('rEnviadoWA');
+  if(pago && pago.enviadoWhatsapp){
+    const fechaEnvio = pago.fechaEnvioWhatsapp ? new Date(pago.fechaEnvioWhatsapp).toLocaleString('es-CO') : '';
+    if(badge){ badge.style.display='block'; badge.textContent = '✔ Enviado por WhatsApp' + (fechaEnvio ? ' — ' + fechaEnvio : ''); }
+    if(btn){ btn.innerHTML = btn.innerHTML.replace('Enviar por WhatsApp','Reenviar por WhatsApp'); }
+  } else {
+    if(badge){ badge.style.display='none'; }
+  }
 }
 
 /* ===================== MAPA GENERAL ===================== */
@@ -3114,7 +3240,7 @@ function initBigMap(){
   L.control.layers(capas, null, {position:'topright', collapsed:true}).addTo(bigMapInstance);
 
   withCoords.forEach(c=>{
-    const color = c.estado==='activo' ? '#22c55e' : (c.estado==='suspendido' ? '#f5a623' : '#ef4444');
+    const color = colorPropietario(c.propietario);
     const icon = L.divIcon({
       className:'',
       html:`<div style="width:16px;height:16px;border-radius:50%;background:${color};border:2.5px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.5)"></div>`,
@@ -3125,6 +3251,7 @@ function initBigMap(){
       <div class="popup-title">${c.nombre}</div>
       <div class="popup-line">Vereda: ${c.vereda||'—'}</div>
       <div class="popup-line">Tel: ${c.telefono||'—'} · WA: ${c.whatsapp||'—'}</div>
+      <div class="popup-line">Propietario: ${c.propietario||'—'} · Estado: ${c.estado||'—'}</div>
       <span class="popup-plan">${c.planNombre}</span>
     `);
     marker.on('dragend', function(ev){
