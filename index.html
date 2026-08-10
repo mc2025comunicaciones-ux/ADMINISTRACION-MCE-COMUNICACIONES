@@ -446,7 +446,15 @@
 
       <div class="grid-cards">
         <div class="stat-card">
-          <div class="stat-icon icon-green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5.5c0-1.9-2.2-3-5-3s-5 1.4-5 3.3 2.2 2.8 5 3.2 5 1.3 5 3.2S14.8 15.5 12 15.5s-5-1.1-5-3"/></svg></div>
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:14px;">
+            <div class="stat-icon icon-green" style="margin-bottom:0;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5.5c0-1.9-2.2-3-5-3s-5 1.4-5 3.3 2.2 2.8 5 3.2 5 1.3 5 3.2S14.8 15.5 12 15.5s-5-1.1-5-3"/></svg></div>
+            <select id="filtroRecaudadoPropietario" onchange="renderStats()" style="font-size:11px; padding:4px 8px; border-radius:8px; background:var(--bg-card); border:1px solid var(--border); color:var(--text-primary); max-width:120px;">
+              <option value="">Todos</option>
+              <option value="EDWIN">EDWIN</option>
+              <option value="IVAN">IVAN</option>
+              <option value="SOCIA">SOCIA</option>
+            </select>
+          </div>
           <div class="stat-label">Recaudado Este Mes</div>
           <div class="stat-value mono" id="statRecaudado">$0</div>
           <div class="stat-note" id="statRecaudadoNote">0 pagos registrados</div>
@@ -2912,13 +2920,23 @@ function renderStats(){
   const bloqueados = clientes.filter(c=>c.estado==='bloqueado');
   const vencidos = activos.filter(c=>estaVencido(c));
 
-  const recaudado = pagosMes.reduce((s,p)=>s+Number(p.valor||0),0);
+  // "Recaudado Este Mes" se puede filtrar por propietario (EDWIN/IVAN/SOCIA) con el
+  // selector de arriba, o mostrar el total combinado si se deja en "Todos".
+  const filtroSel = document.getElementById('filtroRecaudadoPropietario');
+  const propietarioFiltro = filtroSel ? filtroSel.value : '';
+  const mapaClientesPorId = {};
+  clientes.forEach(c=> mapaClientesPorId[c.id] = c);
+  const pagosMesFiltrados = propietarioFiltro
+    ? pagosMes.filter(p=>{ const c = mapaClientesPorId[p.clienteId]; return c && c.propietario === propietarioFiltro; })
+    : pagosMes;
+
+  const recaudado = pagosMesFiltrados.reduce((s,p)=>s+Number(p.valor||0),0);
   const clientesPagadosIds = new Set(pagosMes.map(p=>p.clienteId));
   const pendientes = activos.filter(c=>!clientesPagadosIds.has(c.id));
   const pendienteValor = pendientes.reduce((s,c)=>s+Number(c.precio||0),0);
 
   document.getElementById('statRecaudado').textContent = fmtMoney(recaudado);
-  document.getElementById('statRecaudadoNote').textContent = pagosMes.length + ' pagos registrados';
+  document.getElementById('statRecaudadoNote').textContent = pagosMesFiltrados.length + ' pago(s) registrados' + (propietarioFiltro ? ' — clientes de ' + propietarioFiltro : ' (todos)');
   document.getElementById('statPendiente').textContent = fmtMoney(pendienteValor);
   document.getElementById('statPendienteNote').textContent = pendientes.length + ' clientes sin pagar este mes';
   document.getElementById('statTotalClientes').textContent = clientes.length;
