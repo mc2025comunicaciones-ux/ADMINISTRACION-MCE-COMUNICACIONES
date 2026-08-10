@@ -572,10 +572,18 @@
             <h2>Clientes</h2>
             <div class="panel-sub">Gestiona la información y ubicación de cada cliente</div>
           </div>
-          <button class="btn btn-primary" type="button" id="btnNuevoCliente" onclick="openClienteModal()">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>
-            Nuevo Cliente
-          </button>
+          <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+            <select id="filtroClientesPropietario" onchange="renderClientesTable()" style="font-size:13px; padding:8px 12px; border-radius:10px; background:var(--bg-panel); border:1px solid var(--border-soft); color:var(--text-primary);">
+              <option value="" style="background:var(--bg-panel); color:var(--text-primary);">Todos los propietarios</option>
+              <option value="EDWIN" style="background:var(--bg-panel); color:var(--text-primary);">EDWIN</option>
+              <option value="IVAN" style="background:var(--bg-panel); color:var(--text-primary);">IVAN</option>
+              <option value="SOCIA" style="background:var(--bg-panel); color:var(--text-primary);">SOCIA</option>
+            </select>
+            <button class="btn btn-primary" type="button" id="btnNuevoCliente" onclick="openClienteModal()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>
+              Nuevo Cliente
+            </button>
+          </div>
         </div>
         <div style="overflow-x:auto;">
           <table>
@@ -628,6 +636,12 @@
             <div class="panel-sub">Busca un cliente por nombre o vereda y registra su pago del mes</div>
           </div>
           <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+            <select id="filtroPagosPropietario" onchange="renderPagosTable(document.getElementById('buscarPago').value)" style="font-size:13px; padding:8px 12px; border-radius:10px; background:var(--bg-panel); border:1px solid var(--border-soft); color:var(--text-primary);">
+              <option value="" style="background:var(--bg-panel); color:var(--text-primary);">Todos los propietarios</option>
+              <option value="EDWIN" style="background:var(--bg-panel); color:var(--text-primary);">EDWIN</option>
+              <option value="IVAN" style="background:var(--bg-panel); color:var(--text-primary);">IVAN</option>
+              <option value="SOCIA" style="background:var(--bg-panel); color:var(--text-primary);">SOCIA</option>
+            </select>
             <div class="search-box">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
               <input type="text" id="buscarPago" placeholder="Buscar por nombre o vereda..." oninput="renderPagosTable(this.value)">
@@ -3183,11 +3197,19 @@ function renderStats(){
 
 /* ===================== CLIENTES ===================== */
 function renderClientesTable(){
-  const clientes = getClientes();
+  let clientes = getClientes();
   const tbody = document.getElementById('tablaClientes');
   const empty = document.getElementById('clientesEmpty');
   const perm = permisosActuales().clientes;
-  if(clientes.length===0){ tbody.innerHTML=''; empty.style.display='block'; return; }
+  const filtroSel = document.getElementById('filtroClientesPropietario');
+  const propietarioFiltro = filtroSel ? filtroSel.value : '';
+  if(propietarioFiltro){ clientes = clientes.filter(c=>c.propietario===propietarioFiltro); }
+  if(clientes.length===0){
+    tbody.innerHTML='';
+    empty.style.display='block';
+    empty.querySelector('p') && (empty.querySelector('p').textContent = propietarioFiltro ? 'No hay clientes de ' + propietarioFiltro + '.' : 'Aún no has registrado clientes. Crea el primero con "Nuevo Cliente".');
+    return;
+  }
   empty.style.display='none';
   tbody.innerHTML = clientes.map(c=>`
     <tr>
@@ -3462,7 +3484,10 @@ function renderResumenPagos(){
 function renderPagosTable(filtro){
   renderResumenPagos();
   filtro = (filtro||'').toLowerCase().trim();
+  const filtroPropSel = document.getElementById('filtroPagosPropietario');
+  const propietarioFiltro = filtroPropSel ? filtroPropSel.value : '';
   const clientes = getClientes().filter(c=>{
+    if(propietarioFiltro && c.propietario !== propietarioFiltro) return false;
     if(!filtro) return true;
     return (c.nombre||'').toLowerCase().includes(filtro) || (c.vereda||'').toLowerCase().includes(filtro);
   });
