@@ -1878,6 +1878,36 @@ async function eliminarPagoDeSheet(pagoId){
   }catch(err){ return { ok:false, error: err.message }; }
 }
 
+/* Borra un cliente de la Hoja de Google (se identifica por cédula, igual que al guardarlo) */
+async function eliminarClienteDeSheet(cedula){
+  const url = getSyncUrl();
+  if(!url) return { ok:false, skip:true };
+  try{
+    const res = await fetch(url, { method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' }, body: JSON.stringify({ action:'deleteCliente', cedula: cedula }) });
+    return await res.json().catch(()=>({ok:true}));
+  }catch(err){ return { ok:false, error: err.message }; }
+}
+
+/* Borra un plan de la Hoja de Google */
+async function eliminarPlanDeSheet(planId){
+  const url = getSyncUrl();
+  if(!url) return { ok:false, skip:true };
+  try{
+    const res = await fetch(url, { method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' }, body: JSON.stringify({ action:'deletePlan', id: planId }) });
+    return await res.json().catch(()=>({ok:true}));
+  }catch(err){ return { ok:false, error: err.message }; }
+}
+
+/* Borra un equipo de la Hoja de Google */
+async function eliminarEquipoDeSheet(equipoId){
+  const url = getSyncUrl();
+  if(!url) return { ok:false, skip:true };
+  try{
+    const res = await fetch(url, { method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' }, body: JSON.stringify({ action:'deleteEquipo', id: equipoId }) });
+    return await res.json().catch(()=>({ok:true}));
+  }catch(err){ return { ok:false, error: err.message }; }
+}
+
 /* Envía (crea o actualiza) un equipo en la Hoja de Google */
 async function syncEquipoToSheet(equipo){
   const url = getSyncUrl();
@@ -2193,6 +2223,13 @@ function doPost(e) {
       return respuesta({ ok: true, accion: fila > 0 ? 'actualizado' : 'creado' });
     }
 
+    if (payload.action === 'deleteCliente') {
+      var cedulaDel = String(payload.cedula || '').trim();
+      var filaClienteDel = buscarFilaPorCedula(sheet, cedulaDel);
+      if (filaClienteDel > 0) { sheet.deleteRow(filaClienteDel); return respuesta({ ok: true, eliminado: true }); }
+      return respuesta({ ok: true, eliminado: false });
+    }
+
     if (payload.action === 'upsertPlan') {
       var hojaPlanes = obtenerHoja(ss, 'Planes', ['id','nombre','velocidad','precio']);
       var dp = payload.data;
@@ -2201,6 +2238,14 @@ function doPost(e) {
       if (filaP > 0) { hojaPlanes.getRange(filaP, 1, 1, valoresP.length).setValues([valoresP]); }
       else { hojaPlanes.appendRow(valoresP); }
       return respuesta({ ok: true });
+    }
+
+    if (payload.action === 'deletePlan') {
+      var hojaPlanesDel = ss.getSheetByName('Planes');
+      if (!hojaPlanesDel) { return respuesta({ ok: true, eliminado: false }); }
+      var filaPlanDel = buscarFilaPorId(hojaPlanesDel, payload.id);
+      if (filaPlanDel > 0) { hojaPlanesDel.deleteRow(filaPlanDel); return respuesta({ ok: true, eliminado: true }); }
+      return respuesta({ ok: true, eliminado: false });
     }
 
     if (payload.action === 'upsertPago') {
@@ -2236,6 +2281,14 @@ function doPost(e) {
       if (filaE > 0) { hojaEquipos.getRange(filaE, 1, 1, valoresE.length).setValues([valoresE]); }
       else { hojaEquipos.appendRow(valoresE); }
       return respuesta({ ok: true });
+    }
+
+    if (payload.action === 'deleteEquipo') {
+      var hojaEquiposDel = ss.getSheetByName('Equipos');
+      if (!hojaEquiposDel) { return respuesta({ ok: true, eliminado: false }); }
+      var filaEquipoDel = buscarFilaPorId(hojaEquiposDel, payload.id);
+      if (filaEquipoDel > 0) { hojaEquiposDel.deleteRow(filaEquipoDel); return respuesta({ ok: true, eliminado: true }); }
+      return respuesta({ ok: true, eliminado: false });
     }
 
     if (payload.action === 'upsertUsuario') {
@@ -2450,7 +2503,7 @@ function doPost(e) {
   }
 }
 
-var VERSION_SCRIPT = 'v12-2026-08-09-eliminar-pago';
+var VERSION_SCRIPT = 'v13-2026-08-09-eliminar-cliente-plan-equipo';
 
 function doGet(e) {
   return respuesta({ ok: true, mensaje: 'MCE Sync API activa', version: VERSION_SCRIPT });
@@ -2624,6 +2677,11 @@ function deletePlan(id){
   renderPlanesTable();
   showToast('Plan eliminado');
   logAccion('Plan eliminado', p ? p.nombre : id);
+  if(getSyncUrl() && getSyncAuto()){
+    eliminarPlanDeSheet(id).then(r=>{
+      if(!r || !r.ok){ showToast('El plan se borró aquí, pero no se pudo borrar de la Hoja (revisa Sincronización)'); }
+    });
+  }
 }
 
 document.getElementById('formPlan').addEventListener('submit', function(e){
@@ -3053,6 +3111,11 @@ function deleteCliente(id){
   renderStats();
   showToast('Cliente eliminado');
   logAccion('Cliente eliminado', c ? c.nombre : id);
+  if(c && getSyncUrl() && getSyncAuto()){
+    eliminarClienteDeSheet(c.cedula).then(r=>{
+      if(!r || !r.ok){ showToast('El cliente se borró aquí, pero no se pudo borrar de la Hoja (revisa Sincronización)'); }
+    });
+  }
 }
 
 document.getElementById('cPlan').addEventListener('change', function(){
@@ -3767,6 +3830,11 @@ function deleteEquipo(id){
   renderStats();
   showToast('Equipo eliminado');
   logAccion('Equipo eliminado', e ? e.nombre : id);
+  if(getSyncUrl() && getSyncAuto()){
+    eliminarEquipoDeSheet(id).then(r=>{
+      if(!r || !r.ok){ showToast('El equipo se borró aquí, pero no se pudo borrar de la Hoja (revisa Sincronización)'); }
+    });
+  }
 }
 
 document.getElementById('formEquipo').addEventListener('submit', function(e){
