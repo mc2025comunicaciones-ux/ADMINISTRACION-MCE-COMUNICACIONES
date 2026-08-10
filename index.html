@@ -1827,7 +1827,13 @@ async function syncClienteToSheet(cliente){
     data:{
       nombre: cliente.nombre,
       cedula: cliente.cedula,
-      plan: (cliente.planVelocidad ? cliente.planVelocidad + ' Mbps' : cliente.planNombre),
+      // planNombre ya viene en formato "Nombre — Velocidad Mbps" (así se arma
+      // en el selector de plan del formulario), así que se manda tal cual —
+      // esto es lo que luego permite volver a encontrar el plan por su
+      // nombre real al importar en otro dispositivo. Antes solo se mandaba
+      // la velocidad sola, y nunca coincidía con ningún plan al importar
+      // (por eso el plan aparecía en blanco al editar el cliente).
+      plan: cliente.planNombre || 'Sin plan',
       estado: cliente.estado === 'activo' ? 'Activo' : (cliente.estado === 'suspendido' ? 'Suspendido' : 'Bloqueado'),
       vencimientoISO: asegurarFechaVencimiento(cliente),
       valorNum: Number(cliente.precio || 0),
@@ -2056,6 +2062,19 @@ async function importarDatosDesdeNube(){
         // así no se borra una ubicación marcada localmente si en la Hoja
         // ese cliente todavía no tiene columna J llena.
         if (rc.lat != null && rc.lng != null) { local.lat = rc.lat; local.lng = rc.lng; }
+        // IMPORTANTE: también se enlaza (o corrige) el plan del cliente ya
+        // existente. Antes esto solo pasaba al crear el cliente por primera
+        // vez, así que si el plan se creó en otro dispositivo DESPUÉS de que
+        // este cliente ya existiera aquí, o si cambió de plan, nunca quedaba
+        // enlazado — se veía el precio actualizado pero al editar no
+        // aparecía ningún plan seleccionado y no dejaba guardar.
+        if(planCoincidente){
+          local.planId = planCoincidente.id;
+          local.planNombre = planCoincidente.nombre + ' — ' + planCoincidente.velocidad + ' Mbps';
+          local.planVelocidad = planCoincidente.velocidad;
+        } else if(!local.planId && rc.plan){
+          local.planNombre = rc.plan;
+        }
       } else {
         local = {
           id: 'cli_' + cedulaKey,
