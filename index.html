@@ -2091,6 +2091,24 @@ async function importarDatosDesdeNube(){
         mapaClientesPorCedula[cedulaKey] = local;
       }
     });
+
+    // ---- Si un cliente fue ELIMINADO desde otro dispositivo (ya no aparece
+    // en la Hoja), también se elimina aquí — así una eliminación hecha en un
+    // dispositivo sí se refleja en el otro al importar, no solo las
+    // creaciones/ediciones. Por seguridad, esto SOLO se hace si la Hoja
+    // devolvió al menos un cliente (si llegara vacía por un error de red o
+    // de la respuesta, no se borra nada, para no perder todo por accidente). ----
+    let idsClientesEliminadosPorAusencia = new Set();
+    if((remoto.clientes||[]).length > 0){
+      const cedulasRemotas = new Set((remoto.clientes||[]).map(rc=>limpiarCedulaJS(rc.cedula)).filter(Boolean));
+      for(let i=clientesLocales.length-1; i>=0; i--){
+        const cedulaLocal = limpiarCedulaJS(clientesLocales[i].cedula);
+        if(cedulaLocal && !cedulasRemotas.has(cedulaLocal)){
+          idsClientesEliminadosPorAusencia.add(clientesLocales[i].id);
+          clientesLocales.splice(i,1);
+        }
+      }
+    }
     setClientes(clientesLocales);
 
     // ---- Pagos: se fusionan por id. Si ya existe localmente, solo se
@@ -2119,7 +2137,12 @@ async function importarDatosDesdeNube(){
         autorizadoPor: rp.autorizadoPor, numero: rp.numero
       });
     });
-    setPagos(pagosLocales);
+    // Los pagos de un cliente que se acaba de eliminar por ausencia quedarían
+    // huérfanos (sin cliente) — se quitan también, ya que ese cliente ya no existe.
+    const pagosLocalesLimpios = idsClientesEliminadosPorAusencia.size > 0
+      ? pagosLocales.filter(p=> !idsClientesEliminadosPorAusencia.has(p.clienteId))
+      : pagosLocales;
+    setPagos(pagosLocalesLimpios);
 
     // ---- Equipos: se fusionan por id ----
     const equiposLocales = getEquipos();
@@ -2196,12 +2219,15 @@ async function importarDatosDesdeNube(){
     }
 
     let mensajeFinal = `✔ Importado: ${(remoto.clientes||[]).length} clientes, ${(remoto.planes||[]).length} planes, ${(remoto.pagos||[]).length} pagos, ${(remoto.equipos||[]).length} equipos, ${(remoto.usuarios||[]).length} usuarios, ${(remoto.logs||[]).length} registros de actividad revisados.`;
+    if(idsClientesEliminadosPorAusencia.size > 0){
+      mensajeFinal += ` 🗑 ${idsClientesEliminadosPorAusencia.size} cliente(s) que fueron eliminados desde otro dispositivo también se quitaron aquí.`;
+    }
     if(usuariosConPermisosDudosos > 0){
       mensajeFinal += ` ⚠ ${usuariosConPermisosDudosos} usuario(s) llegaron sin permisos válidos desde la Hoja — revisa Usuarios y vuelve a guardarlos (o usa "Sincronizar Todo Ahora") para corregirlo.`;
     }
     mostrarEstadoSync(mensajeFinal, usuariosConPermisosDudosos === 0);
     showToast('Datos importados desde la nube');
-    logAccion('Importación desde la nube', 'Clientes/Planes/Pagos/Equipos/Usuarios/Logs sincronizados a este dispositivo');
+    logAccion('Importación desde la nube', 'Clientes/Planes/Pagos/Equipos/Usuarios/Logs sincronizados a este dispositivo' + (idsClientesEliminadosPorAusencia.size > 0 ? ` (${idsClientesEliminadosPorAusencia.size} cliente(s) eliminados por sincronización)` : ''));
   }catch(err){
     mostrarEstadoSync('No se pudo importar: ' + err.message, false);
   }
@@ -2759,7 +2785,40 @@ function setPlanes(list){ localStorage.setItem(DB_KEY_PLANES, JSON.stringify(lis
   }
 })();
 
+/* Repara en bloque el enlace de plan de TODOS los clientes que lo tengan
+   roto (plan borrado, sincronización vieja, etc.), usando resolverPlanIdCliente
+   para cada uno. Se ejecuta sola cada vez que se abre Clientes o Planes —
+   así no hay que entrar a editar cliente por cliente para que se corrija. */
+function repararPlanesDeTodosLosClientes(){
+  const clientes = getClientes();
+  const planes = getPlanes();
+  if(planes.length===0 || clientes.length===0) return 0;
+  const reparados = [];
+  clientes.forEach(c=>{
+    const resuelto = resolverPlanIdCliente(c);
+    if(resuelto && resuelto !== c.planId){
+      const planObj = planes.find(p=>p.id===resuelto);
+      c.planId = resuelto;
+      if(planObj){
+        c.planNombre = planObj.nombre + ' — ' + planObj.velocidad + ' Mbps';
+        c.planVelocidad = planObj.velocidad;
+      }
+      reparados.push(c);
+    }
+  });
+  if(reparados.length > 0){
+    setClientes(clientes);
+    if(getSyncUrl() && getSyncAuto()){
+      reparados.forEach(c=> syncClienteToSheet(c));
+    }
+    logAccion('Reparación automática de planes', reparados.length + ' cliente(s) quedaron enlazados a su plan correcto');
+    showToast('Se repararon ' + reparados.length + ' cliente(s) sin plan enlazado correctamente');
+  }
+  return reparados.length;
+}
+
 function renderPlanesTable(){
+  repararPlanesDeTodosLosClientes();
   const planes = getPlanes();
   const clientes = getClientes();
   const tbody = document.getElementById('tablaPlanes');
@@ -2846,6 +2905,40 @@ document.getElementById('formPlan').addEventListener('submit', function(e){
 
   if(getSyncUrl() && getSyncAuto()){ syncPlanToSheet(plan); }
 });
+
+/* Quita tildes y normaliza mayúsculas/espacios, para comparar nombres de
+   plan sin que un acento o una mayúscula de más impida la coincidencia */
+function normalizarTexto(s){
+  return (s||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
+}
+
+/* Encuentra a qué plan (de los que existen AHORA en este dispositivo)
+   corresponde realmente un cliente, aunque su planId guardado ya no exista
+   o nunca se haya enlazado bien (por ejemplo, por una sincronización vieja).
+   Prueba en este orden: 1) el planId tal cual, si sigue existiendo;
+   2) por nombre del plan (ignorando tildes/mayúsculas); 3) por velocidad y
+   precio, que suelen coincidir aunque el nombre varíe. */
+function resolverPlanIdCliente(cliente){
+  const planes = getPlanes();
+  if(cliente.planId && planes.some(p=>p.id===cliente.planId)) return cliente.planId;
+
+  const nombreBuscado = normalizarTexto((cliente.planNombre||'').split(' — ')[0]);
+  if(nombreBuscado){
+    const porNombre = planes.find(p=>normalizarTexto(p.nombre)===nombreBuscado);
+    if(porNombre) return porNombre.id;
+  }
+
+  if(cliente.planVelocidad){
+    const porVelocidadPrecio = planes.find(p=>
+      Number(p.velocidad)===Number(cliente.planVelocidad) &&
+      (!cliente.precio || Number(p.precio)===Number(cliente.precio))
+    );
+    if(porVelocidadPrecio) return porVelocidadPrecio.id;
+    const porVelocidad = planes.find(p=>Number(p.velocidad)===Number(cliente.planVelocidad));
+    if(porVelocidad) return porVelocidad.id;
+  }
+  return null;
+}
 
 function renderPlanSelectInCliente(selectedPlanId){
   const planes = getPlanes();
@@ -3216,6 +3309,7 @@ function renderStats(){
 
 /* ===================== CLIENTES ===================== */
 function renderClientesTable(){
+  repararPlanesDeTodosLosClientes();
   let clientes = getClientes();
   const tbody = document.getElementById('tablaClientes');
   const empty = document.getElementById('clientesEmpty');
@@ -3286,7 +3380,27 @@ function openClienteModal(id){
         document.getElementById('cFechaCorte').value = asegurarFechaVencimiento(c);
         document.getElementById('cPrecio').value = c.precio;
         document.getElementById('cPuntoConexion').value = c.puntoConexion || '';
-        renderPlanSelectInCliente(c.planId);
+
+        // Repara el enlace del plan si quedó "huérfano" (por una sincronización
+        // vieja u otra causa): busca a qué plan corresponde de verdad y, si
+        // encuentra uno distinto al guardado, lo corrige y lo deja guardado
+        // para que no vuelva a pasar.
+        const planIdResuelto = resolverPlanIdCliente(c);
+        if(planIdResuelto && planIdResuelto !== c.planId){
+          const listaRep = getClientes();
+          const idxRep = listaRep.findIndex(x=>x.id===c.id);
+          if(idxRep>=0){
+            const planObj = getPlanes().find(p=>p.id===planIdResuelto);
+            listaRep[idxRep].planId = planIdResuelto;
+            if(planObj){
+              listaRep[idxRep].planNombre = planObj.nombre + ' — ' + planObj.velocidad + ' Mbps';
+              listaRep[idxRep].planVelocidad = planObj.velocidad;
+            }
+            setClientes(listaRep);
+            if(getSyncUrl() && getSyncAuto()){ syncClienteToSheet(listaRep[idxRep]); }
+          }
+        }
+        renderPlanSelectInCliente(planIdResuelto || c.planId);
         if(c.lat){ setCoords(c.lat, c.lng); }
       }
     }
@@ -3501,6 +3615,7 @@ function renderResumenPagos(){
 }
 
 function renderPagosTable(filtro){
+  repararPlanesDeTodosLosClientes();
   renderResumenPagos();
   filtro = (filtro||'').toLowerCase().trim();
   const filtroPropSel = document.getElementById('filtroPagosPropietario');
