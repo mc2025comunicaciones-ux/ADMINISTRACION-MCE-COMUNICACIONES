@@ -3937,6 +3937,7 @@ function enviarReciboWhatsapp(){
   let numero = c.whatsapp.replace(/[^0-9]/g,'');
   if(numero.length===10) numero = '57'+numero;
   if(numero.startsWith('0')) numero = '57'+numero.slice(1);
+  if(numero.length < 10){ showToast('El número de WhatsApp de este cliente no parece válido: ' + c.whatsapp); return; }
 
   const fecha = new Date(pago.fecha).toLocaleDateString('es-CO');
   const mensaje =
@@ -3959,6 +3960,20 @@ Autorizado por: ${pago.autorizadoPor}
 
 ¡Gracias por su pago puntual!`;
 
+  const url = `https://wa.me/${numero}?text=${encodeURIComponent(mensaje)}`;
+
+  // IMPORTANTE: se abre PRIMERO, de inmediato, como respuesta directa al toque
+  // del botón — así el navegador (sobre todo en celular) no lo bloquea por
+  // considerarlo una ventana emergente no solicitada. Todo lo demás (marcar
+  // como enviado, guardar, sincronizar) se hace DESPUÉS, para no retrasar la
+  // apertura de WhatsApp ni un instante.
+  const nuevaVentana = window.open(url, '_blank');
+  if(!nuevaVentana || nuevaVentana.closed || typeof nuevaVentana.closed === 'undefined'){
+    // El navegador bloqueó la ventana emergente (común en algunos celulares) —
+    // se usa una redirección directa como respaldo, que sí suele funcionar.
+    window.location.href = url;
+  }
+
   // Marca el recibo como enviado por WhatsApp (queda visible para todos al importar)
   pago.enviadoWhatsapp = true;
   pago.fechaEnvioWhatsapp = new Date().toISOString();
@@ -3966,12 +3981,10 @@ Autorizado por: ${pago.autorizadoPor}
   const idxPago = pagosGuardar.findIndex(p=>p.id===pago.id);
   if(idxPago>=0){ pagosGuardar[idxPago] = pago; setPagos(pagosGuardar); }
 
-  const url = `https://wa.me/${numero}?text=${encodeURIComponent(mensaje)}`;
-  window.open(url, '_blank');
   showToast('WhatsApp abierto — adjunta el PDF del recibo (descárgalo con el botón "Descargar PDF" si no lo tienes) y presiona enviar');
   logAccion('Recibo enviado por WhatsApp', c.nombre + ' — Recibo N° ' + pago.numero);
-  renderPagosTable(document.getElementById('buscarPago').value);
-  actualizarEstadoEnvioRecibo(pago);
+  try{ renderPagosTable(document.getElementById('buscarPago').value); }catch(e){ console.error(e); }
+  try{ actualizarEstadoEnvioRecibo(pago); }catch(e){ console.error(e); }
 
   if(getSyncUrl() && getSyncAuto()){ syncPagoToSheet(c, pago); }
 }
