@@ -941,6 +941,26 @@
       <div class="panel">
         <div class="panel-head">
           <div>
+            <h2>Copia de Seguridad Local</h2>
+            <div class="panel-sub">Descarga un respaldo de todo lo guardado en este dispositivo (clientes, planes, pagos, equipos, usuarios, logs, nodos e historial)</div>
+          </div>
+        </div>
+        <div class="modal-actions" style="justify-content:flex-start; border-top:none; padding-top:0; margin-top:0; flex-wrap:wrap;">
+          <button class="btn btn-primary" type="button" onclick="descargarCopiaSeguridad()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;vertical-align:-3px;margin-right:4px;"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
+            Descargar Copia de Seguridad (.json)
+          </button>
+          <button class="btn btn-outline" type="button" onclick="document.getElementById('inputRestaurarBackup').click()">Restaurar desde una Copia</button>
+          <input type="file" id="inputRestaurarBackup" accept="application/json,.json" style="display:none;" onchange="restaurarCopiaSeguridad(event)">
+        </div>
+        <div class="coord-display" style="margin-top:14px; color:var(--text-muted); align-items:flex-start; line-height:1.6;">
+          Esta copia se guarda como un archivo .json en tu dispositivo (descárgalo a Drive, correo o donde prefieras). Sirve para recuperar tu información si algo le pasa al navegador o al equipo. "Restaurar" reemplaza TODA la información actual de este dispositivo por la del archivo — úsalo con cuidado, y de ser posible descarga una copia de seguridad actual antes de restaurar una vieja.
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div>
             <h2>Verificar un Cliente en la Hoja</h2>
             <div class="panel-sub">Consulta exactamente qué está viendo el script para una cédula — útil si el recibo no le aparece al cliente</div>
           </div>
@@ -1209,6 +1229,45 @@
         <button type="submit" class="btn btn-primary">Guardar Nodo</button>
       </div>
     </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalHistorialPagos">
+  <div class="modal" style="max-width:520px;">
+    <div class="modal-title" id="historialPagosTitle">Historial de Pagos</div>
+    <div class="modal-sub" id="historialPagosSub">Pagos registrados para este cliente</div>
+    <div class="grid-cards" id="historialPagosResumen" style="margin-bottom:16px; grid-template-columns:1fr 1fr;"></div>
+    <div style="overflow-x:auto; max-height:340px; overflow-y:auto;">
+      <table>
+        <thead><tr><th>Periodo</th><th>Fecha</th><th>Valor</th><th>Forma de pago</th></tr></thead>
+        <tbody id="tablaHistorialPagos"></tbody>
+      </table>
+      <div class="empty-state" id="historialPagosEmpty" style="display:none;">
+        <p>Este cliente aún no tiene pagos registrados.</p>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-outline" onclick="closeModal('modalHistorialPagos')" style="width:100%;">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalHistorialNodo">
+  <div class="modal" style="max-width:560px;">
+    <div class="modal-title" id="historialNodoTitle">Historial de Saturación</div>
+    <div class="modal-sub" id="historialNodoSub">Evolución mes a mes de las megas vendidas en este nodo</div>
+    <div style="overflow-x:auto; max-height:340px; overflow-y:auto;">
+      <table>
+        <thead><tr><th>Periodo</th><th>Megas Vendidas</th><th>Clientes</th><th>Capacidad</th><th style="min-width:140px;">% Usado</th></tr></thead>
+        <tbody id="tablaHistorialNodo"></tbody>
+      </table>
+      <div class="empty-state" id="historialNodoEmpty" style="display:none;">
+        <p>Aún no hay historial guardado. Se va a guardar automáticamente un registro por mes cada vez que abras Info Mbps.</p>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-outline" onclick="closeModal('modalHistorialNodo')" style="width:100%;">Cerrar</button>
+    </div>
   </div>
 </div>
 
@@ -2439,6 +2498,86 @@ async function sincronizarTodosClientes(){
   logAccion('Sincronización masiva', `${ok} registros sincronizados (clientes, planes, pagos, equipos, usuarios, logs), ${fail} con error`);
 }
 
+/* ===================== COPIA DE SEGURIDAD LOCAL ===================== */
+/* Todo lo que se respalda/restaura (no incluye la sesión actual ni el
+   token de usuario logueado, que son propios de cada dispositivo). Se usan
+   las claves de localStorage escritas literalmente (en vez de las
+   constantes DB_KEY_*) porque esas constantes se declaran más abajo en el
+   script y todavía no existirían en este punto de la carga. */
+const CLAVES_BACKUP_MAP = {
+  clientes: 'mce_clientes',
+  planes: 'mce_planes',
+  pagos: 'mce_pagos',
+  equipos: 'mce_equipos',
+  usuarios: 'mce_usuarios',
+  logs: 'mce_logs',
+  nodos: 'mce_nodos',
+  historialNodos: 'mce_historial_nodos',
+  reciboCounter: 'mce_recibo_counter',
+  syncUrl: 'mce_sync_url',
+  syncAuto: 'mce_sync_auto'
+};
+
+function descargarCopiaSeguridad(){
+  const datos = {};
+  Object.keys(CLAVES_BACKUP_MAP).forEach(clave=>{
+    datos[clave] = localStorage.getItem(CLAVES_BACKUP_MAP[clave]);
+  });
+  const paquete = {
+    app: 'MCE Comunicaciones — Panel de Administración',
+    tipo: 'copia_seguridad_local',
+    fechaGeneracion: new Date().toISOString(),
+    datos
+  };
+  const blob = new Blob([JSON.stringify(paquete, null, 2)], { type:'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const timestamp = new Date().toISOString().slice(0,16).replace('T','_').replace(':','-');
+  a.href = url;
+  a.download = `backup_mce_${timestamp}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('Copia de seguridad descargada');
+  logAccion('Copia de seguridad descargada', 'Respaldo local generado');
+}
+
+function restaurarCopiaSeguridad(event){
+  const archivo = event.target.files[0];
+  if(!archivo) return;
+  const lector = new FileReader();
+  lector.onload = function(e){
+    let paquete;
+    try{
+      paquete = JSON.parse(e.target.result);
+    }catch(err){
+      showToast('El archivo no es una copia de seguridad válida (JSON inválido)');
+      event.target.value = '';
+      return;
+    }
+    if(!paquete || paquete.tipo !== 'copia_seguridad_local' || !paquete.datos){
+      showToast('Este archivo no parece ser una copia de seguridad de este panel');
+      event.target.value = '';
+      return;
+    }
+    const fechaTexto = paquete.fechaGeneracion ? new Date(paquete.fechaGeneracion).toLocaleString('es-CO') : 'fecha desconocida';
+    if(!confirm(`Vas a RESTAURAR la copia de seguridad del ${fechaTexto}.\n\nEsto reemplaza TODA la información actual de este dispositivo (clientes, planes, pagos, equipos, usuarios, logs, nodos e historial) por la del archivo. Esta acción no se puede deshacer.\n\n¿Continuar?`)) {
+      event.target.value = '';
+      return;
+    }
+    Object.keys(CLAVES_BACKUP_MAP).forEach(clave=>{
+      const valor = paquete.datos[clave];
+      if(valor === null || valor === undefined) return;
+      localStorage.setItem(CLAVES_BACKUP_MAP[clave], valor);
+    });
+    showToast('Copia de seguridad restaurada. Recargando...');
+    logAccion('Copia de seguridad restaurada', 'Respaldo del ' + fechaTexto);
+    setTimeout(()=>{ location.reload(); }, 900);
+  };
+  lector.readAsText(archivo);
+}
+
 function descargarCodigoAppsScript(){
   if(!(esSuperAdmin() || permisosActuales().descargarCodigo)){ showToast('No tienes permiso para descargar el código de sincronización'); return; }
   const codigo = `// ============================================================
@@ -3062,9 +3201,58 @@ const DB_KEY_NODOS = 'mce_nodos';
 function getNodos(){ try{ return JSON.parse(localStorage.getItem(DB_KEY_NODOS) || '[]'); }catch(e){ return []; } }
 function setNodos(list){ localStorage.setItem(DB_KEY_NODOS, JSON.stringify(list)); }
 
+/* ---- Historial de saturación por nodo ----
+   Cada vez que se abre el panel (o se entra a Info Mbps) por primera vez en
+   un periodo (mes) nuevo, se guarda automáticamente una "foto" de cuántas
+   megas estaban vendidas en ese momento en cada nodo. Así, con el tiempo, se
+   arma solo un historial mes a mes sin que el usuario tenga que hacer nada,
+   para ver la tendencia de crecimiento de cada nodo y anticipar cuándo va a
+   tocar ampliar el enlace. */
+const DB_KEY_HISTORIAL_NODOS = 'mce_historial_nodos';
+function getHistorialNodos(){ try{ return JSON.parse(localStorage.getItem(DB_KEY_HISTORIAL_NODOS) || '[]'); }catch(e){ return []; } }
+function setHistorialNodos(list){ localStorage.setItem(DB_KEY_HISTORIAL_NODOS, JSON.stringify(list)); }
+
 /* Convierte el texto "Pedregal, Cerro" en un array normalizado ['Pedregal','Cerro'] */
 function veredasDeNodo(nodo){
   return (nodo.veredas || '').split(',').map(v=>v.trim()).filter(Boolean);
+}
+
+/* Calcula, para un nodo dado, cuántos clientes y cuántas megas vendidas tiene
+   ahora mismo (sumando el plan contratado de cada cliente cuya vereda cae en
+   ese nodo). Se usa tanto para pintar la tabla como para guardar el snapshot
+   mensual del historial. */
+function megasVendidasDelNodo(nodo, clientes){
+  const veredasNodo = veredasDeNodo(nodo).map(v=>normalizarTexto(v));
+  const clientesDelNodo = clientes.filter(c=> veredasNodo.includes(normalizarTexto(c.vereda||'')));
+  const megasVendidas = clientesDelNodo.reduce((s,c)=>s+Number(c.planVelocidad||0),0);
+  return { megasVendidas, clientesCount: clientesDelNodo.length };
+}
+
+/* Guarda un snapshot del periodo actual para cada nodo, solo si todavía no
+   existe uno para ese nodo+periodo (así no se duplica si se abre el panel
+   varias veces en el mismo mes). Se llama cada vez que se dibuja la tabla de
+   nodos, que es prácticamente "cada vez que se entra a Info Mbps". */
+function registrarSnapshotMensualNodos(){
+  const nodos = getNodos();
+  if(nodos.length===0) return;
+  const clientes = getClientes();
+  const periodo = periodoActual();
+  let historial = getHistorialNodos();
+  let cambios = false;
+  nodos.forEach(n=>{
+    const yaExiste = historial.some(h=>h.nodoId===n.id && h.periodo===periodo);
+    if(yaExiste) return;
+    const { megasVendidas, clientesCount } = megasVendidasDelNodo(n, clientes);
+    historial.push({
+      id: 'hn_'+Date.now()+Math.random().toString(36).slice(2,6),
+      nodoId: n.id, periodo,
+      capacidadMbps: Number(n.capacidadMbps||0),
+      megasVendidas, clientesCount,
+      fecha: new Date().toISOString().slice(0,10)
+    });
+    cambios = true;
+  });
+  if(cambios) setHistorialNodos(historial);
 }
 
 function renderSelectorPlanCalculo(){
@@ -3084,6 +3272,7 @@ function renderNodosTable(){
   const tbody = document.getElementById('tablaNodos');
   const empty = document.getElementById('nodosEmpty');
   renderSelectorPlanCalculo();
+  registrarSnapshotMensualNodos();
 
   const reuso = Number(document.getElementById('selectorReuso')?.value || 4);
   const planCalculoMbps = Number(document.getElementById('selectorPlanCalculo')?.value || 0);
@@ -3092,9 +3281,7 @@ function renderNodosTable(){
   empty.style.display='none';
 
   tbody.innerHTML = nodos.map(n=>{
-    const veredasNodo = veredasDeNodo(n).map(v=>normalizarTexto(v));
-    const clientesDelNodo = clientes.filter(c=> veredasNodo.includes(normalizarTexto(c.vereda||'')));
-    const megasVendidas = clientesDelNodo.reduce((s,c)=>s+Number(c.planVelocidad||0),0);
+    const { megasVendidas, clientesCount } = megasVendidasDelNodo(n, clientes);
     const capacidadMax = Number(n.capacidadMbps||0) * reuso;
     const disponible = capacidadMax - megasVendidas;
     const pctUsado = capacidadMax > 0 ? Math.min(100, Math.round((megasVendidas/capacidadMax)*100)) : 0;
@@ -3121,13 +3308,16 @@ function renderNodosTable(){
       <td class="cell-strong">${n.nombre}</td>
       <td class="cell-muted">${veredasDeNodo(n).join(', ') || '—'}</td>
       <td class="mono cell-muted">${Number(n.capacidadMbps||0).toLocaleString('es-CO')} Mbps</td>
-      <td class="mono cell-muted">${megasVendidas.toLocaleString('es-CO')} Mbps <span style="color:var(--text-faint);">(${clientesDelNodo.length} cli.)</span></td>
+      <td class="mono cell-muted">${megasVendidas.toLocaleString('es-CO')} Mbps <span style="color:var(--text-faint);">(${clientesCount} cli.)</span></td>
       <td class="mono">${capacidadMax.toLocaleString('es-CO')} Mbps</td>
       <td class="mono" style="color:${disponible<=0?'var(--danger)':'var(--text-primary)'};">${disponible.toLocaleString('es-CO')} Mbps</td>
       <td>${cuposTexto}</td>
       <td>${estadoBadge}</td>
       <td>
         <div class="row-actions">
+          <button class="icon-btn" type="button" onclick="verHistorialNodo('${n.id}')" title="Historial de saturación">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20 4 14M9 20 9 9M14 20 14 5M19 20 19 12"/><path d="M2 20h20"/></svg>
+          </button>
           <button class="icon-btn" type="button" onclick="editNodo('${n.id}')" title="Editar">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
           </button>
@@ -3159,12 +3349,52 @@ function openNodoModal(id){
 function editNodo(id){ openNodoModal(id); }
 
 function deleteNodo(id){
-  if(!confirm('¿Eliminar este nodo? Esto no afecta a tus clientes ni sus veredas, solo quita el control de capacidad.')) return;
+  if(!confirm('¿Eliminar este nodo? Esto no afecta a tus clientes ni sus veredas, solo quita el control de capacidad. También se borrará su historial de saturación.')) return;
   const n = getNodos().find(x=>x.id===id);
   setNodos(getNodos().filter(x=>x.id!==id));
+  setHistorialNodos(getHistorialNodos().filter(h=>h.nodoId!==id));
   renderNodosTable();
   showToast('Nodo eliminado');
   logAccion('Nodo eliminado', n ? n.nombre : id);
+}
+
+/* Muestra el historial mes a mes de megas vendidas de un nodo, para ver la
+   tendencia de crecimiento y anticipar cuándo tocará ampliar el enlace. */
+function verHistorialNodo(id){
+  const nodo = getNodos().find(n=>n.id===id);
+  if(!nodo){ showToast('Nodo no encontrado'); return; }
+  const historial = getHistorialNodos()
+    .filter(h=>h.nodoId===id)
+    .sort((a,b)=> b.periodo.localeCompare(a.periodo));
+
+  document.getElementById('historialNodoTitle').textContent = 'Historial de Saturación — ' + nodo.nombre;
+  document.getElementById('historialNodoSub').textContent = 'Veredas: ' + (veredasDeNodo(nodo).join(', ') || '—') + ' · Capacidad actual: ' + Number(nodo.capacidadMbps||0).toLocaleString('es-CO') + ' Mbps';
+
+  const tbody = document.getElementById('tablaHistorialNodo');
+  const empty = document.getElementById('historialNodoEmpty');
+  if(historial.length===0){
+    tbody.innerHTML = '';
+    empty.style.display = 'block';
+  } else {
+    empty.style.display = 'none';
+    tbody.innerHTML = historial.map(h=>{
+      const pct = h.capacidadMbps > 0 ? Math.min(100, Math.round((h.megasVendidas / h.capacidadMbps) * 100)) : 0;
+      return `
+      <tr>
+        <td class="cell-strong">${periodoTexto(h.periodo)}</td>
+        <td class="mono cell-muted">${h.megasVendidas.toLocaleString('es-CO')} Mbps</td>
+        <td class="mono cell-muted">${h.clientesCount||0}</td>
+        <td class="mono cell-muted">${Number(h.capacidadMbps||0).toLocaleString('es-CO')} Mbps</td>
+        <td>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <div class="vereda-bar-track" style="flex:1;"><div class="vereda-bar-fill" style="width:${pct}%;"></div></div>
+            <span class="mono cell-muted" style="font-size:11.5px; min-width:32px; text-align:right;">${pct}%</span>
+          </div>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+  document.getElementById('modalHistorialNodo').classList.add('active');
 }
 
 document.getElementById('formNodo').addEventListener('submit', function(e){
@@ -3186,6 +3416,7 @@ document.getElementById('formNodo').addEventListener('submit', function(e){
   showToast('Nodo guardado correctamente');
   logAccion(esNuevo ? 'Nodo creado' : 'Nodo editado', nodo.nombre + ' — ' + nodo.capacidadMbps + ' Mbps — ' + nodo.veredas);
 });
+
 
 /* Quita tildes y normaliza mayúsculas/espacios, para comparar nombres de
    plan sin que un acento o una mayúscula de más impida la coincidencia */
@@ -3755,6 +3986,9 @@ function renderClientesTable(){
       <td>${badgeForEstado(c)}</td>
       <td>
         <div class="row-actions">
+          <button class="icon-btn" type="button" onclick="verHistorialPagos('${c.id}')" title="Historial de pagos">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.2 3.2"/></svg>
+          </button>
           ${perm.editar ? `<button class="icon-btn" type="button" onclick="editCliente('${c.id}')" title="Editar">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
           </button>` : ''}
@@ -3826,6 +4060,48 @@ function editCliente(id){
   const perm = permisosActuales().clientes;
   if(!perm.editar){ showToast('No tienes permiso para editar clientes'); return; }
   openClienteModal(id);
+}
+
+/* Muestra el historial completo de pagos de un cliente (todos los periodos
+   registrados, más recientes primero), con un pequeño resumen de cuánto ha
+   pagado en total y cuántos pagos lleva. */
+function verHistorialPagos(id){
+  const cliente = getClientes().find(c=>c.id===id);
+  if(!cliente){ showToast('Cliente no encontrado'); return; }
+  const pagosCliente = getPagos()
+    .filter(p=>p.clienteId===id)
+    .sort((a,b)=> normalizarPeriodo(b.periodo).localeCompare(normalizarPeriodo(a.periodo)) || (b.fecha||'').localeCompare(a.fecha||''));
+
+  document.getElementById('historialPagosTitle').textContent = 'Historial de Pagos — ' + cliente.nombre;
+  document.getElementById('historialPagosSub').textContent = (cliente.vereda ? cliente.vereda + ' · ' : '') + 'Plan: ' + (cliente.planNombre||'—');
+
+  const totalPagado = pagosCliente.reduce((s,p)=>s+Number(p.valor||0),0);
+  document.getElementById('historialPagosResumen').innerHTML = `
+    <div class="stat-card" style="padding:14px 16px;">
+      <div class="stat-label" style="margin-bottom:4px;">Total Pagado (histórico)</div>
+      <div class="stat-value mono" style="font-size:18px;">${fmtMoney(totalPagado)}</div>
+    </div>
+    <div class="stat-card" style="padding:14px 16px;">
+      <div class="stat-label" style="margin-bottom:4px;">Pagos Registrados</div>
+      <div class="stat-value mono" style="font-size:18px;">${pagosCliente.length}</div>
+    </div>`;
+
+  const tbody = document.getElementById('tablaHistorialPagos');
+  const empty = document.getElementById('historialPagosEmpty');
+  if(pagosCliente.length===0){
+    tbody.innerHTML = '';
+    empty.style.display = 'block';
+  } else {
+    empty.style.display = 'none';
+    tbody.innerHTML = pagosCliente.map(p=>`
+      <tr>
+        <td class="cell-strong">${periodoTexto(p.periodo)}</td>
+        <td class="mono cell-muted">${p.fecha||'—'}</td>
+        <td class="mono">${fmtMoney(p.valor)}</td>
+        <td class="cell-muted">${p.formaPago||'Efectivo'}</td>
+      </tr>`).join('');
+  }
+  document.getElementById('modalHistorialPagos').classList.add('active');
 }
 
 function deleteCliente(id){
