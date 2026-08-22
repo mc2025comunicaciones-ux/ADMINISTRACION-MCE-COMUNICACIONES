@@ -608,6 +608,9 @@
             <div class="panel-sub">Gestiona la información y ubicación de cada cliente</div>
           </div>
           <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+            <select id="filtroClientesVereda" onchange="renderClientesTable()" style="font-size:13px; padding:8px 12px; border-radius:10px; background:var(--bg-panel); border:1px solid var(--border-soft); color:var(--text-primary);">
+              <option value="" style="background:var(--bg-panel); color:var(--text-primary);">Todas las veredas</option>
+            </select>
             <select id="filtroClientesPropietario" onchange="renderClientesTable()" style="font-size:13px; padding:8px 12px; border-radius:10px; background:var(--bg-panel); border:1px solid var(--border-soft); color:var(--text-primary);">
               <option value="" style="background:var(--bg-panel); color:var(--text-primary);">Todos los propietarios</option>
               <option value="EDWIN" style="background:var(--bg-panel); color:var(--text-primary);">EDWIN</option>
@@ -3409,16 +3412,44 @@ function renderClientesTable(){
   const tbody = document.getElementById('tablaClientes');
   const empty = document.getElementById('clientesEmpty');
   const perm = permisosActuales().clientes;
+
+  // Selector "Todas las veredas" — se rellena solo con las veredas que ya
+  // existen entre los clientes (sin duplicados), ordenadas alfabéticamente,
+  // así que apenas se registra un cliente en una vereda nueva, esta aparece
+  // sola en el filtro sin tocar el código. Se conserva la vereda elegida al
+  // volver a dibujar la lista (por ejemplo al buscar o al editar un cliente).
+  const filtroVeredaSel = document.getElementById('filtroClientesVereda');
+  const veredaFiltroActual = filtroVeredaSel ? filtroVeredaSel.value : '';
+  if(filtroVeredaSel){
+    const veredasUnicas = [...new Set(getClientes().map(c=>(c.vereda||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'));
+    filtroVeredaSel.innerHTML = '<option value="">Todas las veredas</option>' +
+      veredasUnicas.map(v=>`<option value="${v.replace(/"/g,'&quot;')}">${v}</option>`).join('');
+    filtroVeredaSel.value = veredasUnicas.includes(veredaFiltroActual) ? veredaFiltroActual : '';
+  }
+  const veredaFiltro = filtroVeredaSel ? filtroVeredaSel.value : '';
+  if(veredaFiltro){ clientes = clientes.filter(c=>(c.vereda||'').trim()===veredaFiltro); }
+
   const filtroSel = document.getElementById('filtroClientesPropietario');
   const propietarioFiltro = filtroSel ? filtroSel.value : '';
   if(propietarioFiltro){ clientes = clientes.filter(c=>c.propietario===propietarioFiltro); }
   if(clientes.length===0){
     tbody.innerHTML='';
     empty.style.display='block';
-    empty.querySelector('p') && (empty.querySelector('p').textContent = propietarioFiltro ? 'No hay clientes de ' + propietarioFiltro + '.' : 'Aún no has registrado clientes. Crea el primero con "Nuevo Cliente".');
+    let msg = 'Aún no has registrado clientes. Crea el primero con "Nuevo Cliente".';
+    if(veredaFiltro && propietarioFiltro) msg = `No hay clientes de ${propietarioFiltro} en ${veredaFiltro}.`;
+    else if(veredaFiltro) msg = `No hay clientes en ${veredaFiltro}.`;
+    else if(propietarioFiltro) msg = 'No hay clientes de ' + propietarioFiltro + '.';
+    empty.querySelector('p') && (empty.querySelector('p').textContent = msg);
     return;
   }
   empty.style.display='none';
+  // Se agrupa visualmente por vereda (orden alfabético) y dentro de cada
+  // vereda por nombre de cliente, así la tabla no se ve "revuelta" incluso
+  // cuando no se ha elegido un filtro de vereda específico.
+  clientes = [...clientes].sort((a,b)=>{
+    const va = (a.vereda||'').trim(), vb = (b.vereda||'').trim();
+    return va.localeCompare(vb,'es') || (a.nombre||'').localeCompare(b.nombre||'','es');
+  });
   tbody.innerHTML = clientes.map(c=>`
     <tr>
       <td><div class="cell-strong">${c.nombre}</div><div class="cell-muted">Cédula: ${c.cedula}</div></td>
