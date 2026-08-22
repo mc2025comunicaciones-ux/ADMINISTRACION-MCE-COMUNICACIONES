@@ -382,6 +382,10 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V10M18 20V4M6 20v-6"/></svg>
       Planes
     </button>
+    <button type="button" class="navlink" data-view="infomegas">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20 4 14M9 20 9 9M14 20 14 5M19 20 19 12"/><path d="M2 20h20"/></svg>
+      Info Mbps
+    </button>
     <button type="button" class="navlink" data-view="pagos">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2.5" y="5" width="19" height="14" rx="2.2"/><path d="M2.5 10h19"/><path d="M6 15h4"/></svg>
       Pagos
@@ -670,6 +674,67 @@
           </table>
           <div class="empty-state" id="planesEmpty" style="display:none;">
             <p>No has creado planes todavía. Crea el primero con "Nuevo Plan".</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== VISTA INFO MBPS (Reuso y saturación de nodos) ===== -->
+    <section class="view" id="view-infomegas">
+      <div class="hero-banner" style="padding:26px 30px; margin-bottom:24px;">
+        <div class="hero-eyebrow"><span class="status-dot"></span> Planeación de capacidad</div>
+        <h1 style="font-size:24px;">Info Mbps — Reuso y Saturación</h1>
+        <p>Agrupa tus veredas por el nodo/enlace que comparten, define su capacidad, elige un reuso y sabrás cuántos clientes más caben antes de saturarlo.</p>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Nodos / Enlaces</h2>
+            <div class="panel-sub">Cada nodo agrupa una o varias veredas que comparten la misma capacidad de internet</div>
+          </div>
+          <button class="btn btn-primary" type="button" onclick="openNodoModal()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>
+            Nuevo Nodo
+          </button>
+        </div>
+
+        <div style="display:flex; flex-wrap:wrap; gap:20px; align-items:flex-start; margin-bottom:22px; padding:16px 18px; background:var(--bg-card); border:1px solid var(--border); border-radius:12px;">
+          <div>
+            <label style="display:block; font-size:11px; color:var(--text-muted); margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px;">Reuso a evaluar (contención)</label>
+            <select id="selectorReuso" onchange="renderNodosTable()" style="font-size:13px; padding:8px 12px; border-radius:10px; background:var(--bg-panel); border:1px solid var(--border-soft); color:var(--text-primary); min-width:230px;">
+              <option value="1">1:1 — Sin contención (muy conservador)</option>
+              <option value="2">1:2 — Conservador</option>
+              <option value="3">1:3 — Conservador</option>
+              <option value="4" selected>1:4 — Recomendado (equilibrado)</option>
+              <option value="5">1:5 — Moderado</option>
+              <option value="6">1:6 — Moderado-alto</option>
+              <option value="7">1:7 — Alto</option>
+              <option value="8">1:8 — Agresivo, vigila la calidad</option>
+              <option value="10">1:10 — Muy agresivo, no recomendado</option>
+            </select>
+          </div>
+          <div>
+            <label style="display:block; font-size:11px; color:var(--text-muted); margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px;">Plan a instalar (para calcular cupos)</label>
+            <select id="selectorPlanCalculo" onchange="renderNodosTable()" style="font-size:13px; padding:8px 12px; border-radius:10px; background:var(--bg-panel); border:1px solid var(--border-soft); color:var(--text-primary); min-width:200px;"></select>
+          </div>
+          <div style="font-size:11.5px; color:var(--text-faint); max-width:280px; line-height:1.5;">
+            Referencia general en redes fijas/WISP: <strong style="color:var(--text-muted);">1:3–1:4</strong> conservador, <strong style="color:var(--text-muted);">1:5–1:6</strong> moderado, <strong style="color:var(--text-muted);">1:8+</strong> agresivo. A mayor reuso caben más clientes, pero crece el riesgo de saturar el nodo en horas pico.
+          </div>
+        </div>
+
+        <div style="overflow-x:auto;">
+          <table>
+            <thead>
+              <tr>
+                <th>Nodo</th><th>Veredas cubiertas</th><th>Capacidad Enlace</th><th>Megas Vendidas</th>
+                <th>Capacidad Máx. (con reuso)</th><th>Disponible</th><th>Cupos del plan elegido</th><th>Estado</th><th></th>
+              </tr>
+            </thead>
+            <tbody id="tablaNodos"></tbody>
+          </table>
+          <div class="empty-state" id="nodosEmpty" style="display:none;">
+            <p>Aún no has creado nodos. Crea el primero con "Nuevo Nodo" para empezar a controlar la saturación.</p>
           </div>
         </div>
       </div>
@@ -1118,6 +1183,35 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="modalNodo">
+  <div class="modal" style="max-width:440px;">
+    <div class="modal-title" id="nodoModalTitle">Nuevo Nodo</div>
+    <div class="modal-sub">Define el enlace y qué veredas comparten esta misma capacidad</div>
+    <form id="formNodo">
+      <input type="hidden" id="nodoId">
+      <div class="form-grid">
+        <div class="form-field full">
+          <label>Nombre del nodo</label>
+          <input type="text" id="nNombre" required placeholder="Ej: Nodo Pedregal-Cerro">
+        </div>
+        <div class="form-field">
+          <label>Capacidad del enlace (Mbps)</label>
+          <input type="number" id="nCapacidad" required min="1" step="1" placeholder="Ej: 100">
+        </div>
+        <div class="form-field full">
+          <label>Veredas que cubre este nodo</label>
+          <input type="text" id="nVeredas" required placeholder="Ej: Pedregal, Cerro" list="listaVeredas">
+          <div style="font-size:11px; color:var(--text-faint); margin-top:5px;">Escribe los mismos nombres que usas en el campo Vereda de tus clientes. Si el nodo cubre varias, sepáralas con coma.</div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" onclick="closeModal('modalNodo')">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Guardar Nodo</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <!-- ================= MODAL EQUIPO ================= -->
 <div class="modal-overlay" id="modalEquipo">
   <div class="modal">
@@ -1448,6 +1542,7 @@ function aplicarPermisos(){
 
   toggleNav('clientes', !!p.clientes.ver);
   toggleNav('planes', !!p.planes);
+  toggleNav('infomegas', !!p.planes);
   toggleNav('pagos', !!p.pagos.ver);
   toggleNav('mapa', !!p.mapa);
   toggleNav('instalaciones', !!p.instalaciones.ver);
@@ -2955,6 +3050,143 @@ document.getElementById('formPlan').addEventListener('submit', function(e){
   if(getSyncUrl() && getSyncAuto()){ syncPlanToSheet(plan); }
 });
 
+/* ===================== NODOS / INFO MBPS (reuso y saturación) =====================
+   Un "nodo" agrupa una o varias veredas que comparten la misma capacidad de
+   enlace. Con eso, y un reuso (contención) elegido por el usuario, se calcula
+   cuántos Mbps se pueden vender como máximo en ese nodo, cuántos ya están
+   vendidos (sumando el plan contratado de cada cliente cuya vereda cae en
+   ese nodo) y por lo tanto cuántos clientes de determinado plan aún caben
+   sin saturarlo. Esta información se guarda solo en este dispositivo (no se
+   sincroniza todavía con la Hoja de Google, a diferencia de clientes/planes/pagos). */
+const DB_KEY_NODOS = 'mce_nodos';
+function getNodos(){ try{ return JSON.parse(localStorage.getItem(DB_KEY_NODOS) || '[]'); }catch(e){ return []; } }
+function setNodos(list){ localStorage.setItem(DB_KEY_NODOS, JSON.stringify(list)); }
+
+/* Convierte el texto "Pedregal, Cerro" en un array normalizado ['Pedregal','Cerro'] */
+function veredasDeNodo(nodo){
+  return (nodo.veredas || '').split(',').map(v=>v.trim()).filter(Boolean);
+}
+
+function renderSelectorPlanCalculo(){
+  const sel = document.getElementById('selectorPlanCalculo');
+  if(!sel) return;
+  const valorActual = sel.value;
+  const planes = getPlanes();
+  sel.innerHTML = planes.map(p=>`<option value="${p.velocidad}">${p.nombre} — ${p.velocidad} Mbps</option>`).join('')
+    || '<option value="0">Sin planes creados</option>';
+  const valores = planes.map(p=>String(p.velocidad));
+  sel.value = valores.includes(valorActual) ? valorActual : (valores[0] || '0');
+}
+
+function renderNodosTable(){
+  const nodos = getNodos();
+  const clientes = getClientes();
+  const tbody = document.getElementById('tablaNodos');
+  const empty = document.getElementById('nodosEmpty');
+  renderSelectorPlanCalculo();
+
+  const reuso = Number(document.getElementById('selectorReuso')?.value || 4);
+  const planCalculoMbps = Number(document.getElementById('selectorPlanCalculo')?.value || 0);
+
+  if(nodos.length===0){ tbody.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display='none';
+
+  tbody.innerHTML = nodos.map(n=>{
+    const veredasNodo = veredasDeNodo(n).map(v=>normalizarTexto(v));
+    const clientesDelNodo = clientes.filter(c=> veredasNodo.includes(normalizarTexto(c.vereda||'')));
+    const megasVendidas = clientesDelNodo.reduce((s,c)=>s+Number(c.planVelocidad||0),0);
+    const capacidadMax = Number(n.capacidadMbps||0) * reuso;
+    const disponible = capacidadMax - megasVendidas;
+    const pctUsado = capacidadMax > 0 ? Math.min(100, Math.round((megasVendidas/capacidadMax)*100)) : 0;
+
+    let cuposTexto = '—';
+    if(planCalculoMbps > 0){
+      if(disponible <= 0){
+        cuposTexto = '<span style="color:var(--danger); font-weight:600;">0 — nodo saturado</span>';
+      } else {
+        const cupos = Math.floor(disponible / planCalculoMbps);
+        cuposTexto = cupos > 0
+          ? `<span style="color:var(--success); font-weight:600;">${cupos} cliente${cupos===1?'':'s'}</span>`
+          : `<span style="color:var(--warning); font-weight:600;">0 — no alcanza ${planCalculoMbps} Mbps</span>`;
+      }
+    }
+
+    let estadoBadge;
+    if(disponible <= 0) estadoBadge = '<span class="badge badge-red">● Saturado</span>';
+    else if(pctUsado >= 85) estadoBadge = '<span class="badge badge-orange">● Cerca del límite</span>';
+    else estadoBadge = '<span class="badge badge-green">● Con espacio</span>';
+
+    return `
+    <tr>
+      <td class="cell-strong">${n.nombre}</td>
+      <td class="cell-muted">${veredasDeNodo(n).join(', ') || '—'}</td>
+      <td class="mono cell-muted">${Number(n.capacidadMbps||0).toLocaleString('es-CO')} Mbps</td>
+      <td class="mono cell-muted">${megasVendidas.toLocaleString('es-CO')} Mbps <span style="color:var(--text-faint);">(${clientesDelNodo.length} cli.)</span></td>
+      <td class="mono">${capacidadMax.toLocaleString('es-CO')} Mbps</td>
+      <td class="mono" style="color:${disponible<=0?'var(--danger)':'var(--text-primary)'};">${disponible.toLocaleString('es-CO')} Mbps</td>
+      <td>${cuposTexto}</td>
+      <td>${estadoBadge}</td>
+      <td>
+        <div class="row-actions">
+          <button class="icon-btn" type="button" onclick="editNodo('${n.id}')" title="Editar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+          </button>
+          <button class="icon-btn danger" type="button" onclick="deleteNodo('${n.id}')" title="Eliminar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0-1 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 6"/></svg>
+          </button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function openNodoModal(id){
+  document.getElementById('formNodo').reset();
+  document.getElementById('nodoId').value = '';
+  document.getElementById('nodoModalTitle').textContent = 'Nuevo Nodo';
+  if(id){
+    const n = getNodos().find(x=>x.id===id);
+    if(n){
+      document.getElementById('nodoModalTitle').textContent = 'Editar Nodo';
+      document.getElementById('nodoId').value = n.id;
+      document.getElementById('nNombre').value = n.nombre;
+      document.getElementById('nCapacidad').value = n.capacidadMbps;
+      document.getElementById('nVeredas').value = n.veredas;
+    }
+  }
+  document.getElementById('modalNodo').classList.add('active');
+}
+function editNodo(id){ openNodoModal(id); }
+
+function deleteNodo(id){
+  if(!confirm('¿Eliminar este nodo? Esto no afecta a tus clientes ni sus veredas, solo quita el control de capacidad.')) return;
+  const n = getNodos().find(x=>x.id===id);
+  setNodos(getNodos().filter(x=>x.id!==id));
+  renderNodosTable();
+  showToast('Nodo eliminado');
+  logAccion('Nodo eliminado', n ? n.nombre : id);
+}
+
+document.getElementById('formNodo').addEventListener('submit', function(e){
+  e.preventDefault();
+  const id = document.getElementById('nodoId').value || 'nd_'+Date.now();
+  const nodo = {
+    id,
+    nombre: document.getElementById('nNombre').value.trim(),
+    capacidadMbps: Number(document.getElementById('nCapacidad').value),
+    veredas: document.getElementById('nVeredas').value.trim(),
+  };
+  const nodos = getNodos();
+  const idx = nodos.findIndex(n=>n.id===id);
+  const esNuevo = idx < 0;
+  if(idx>=0) nodos[idx] = nodo; else nodos.push(nodo);
+  setNodos(nodos);
+  renderNodosTable();
+  closeModal('modalNodo');
+  showToast('Nodo guardado correctamente');
+  logAccion(esNuevo ? 'Nodo creado' : 'Nodo editado', nodo.nombre + ' — ' + nodo.capacidadMbps + ' Mbps — ' + nodo.veredas);
+});
+
 /* Quita tildes y normaliza mayúsculas/espacios, para comparar nombres de
    plan sin que un acento o una mayúscula de más impida la coincidencia */
 function normalizarTexto(s){
@@ -3175,6 +3407,7 @@ const titles = {
   inicio:['Inicio','Resumen operativo de tu red'],
   clientes:['Clientes','Gestiona la información y ubicación de cada cliente'],
   planes:['Planes de Internet','Crea y administra los planes disponibles'],
+  infomegas:['Info Mbps','Controla el reuso y la saturación de cada nodo'],
   pagos:['Pagos','Registra pagos, genera recibos y controla la cartera'],
   mapa:['Mapa de Clientes','Visualiza y reubica a tus clientes geográficamente'],
   instalaciones:['Instalaciones','Inventario de equipos de red en campo'],
@@ -3196,6 +3429,7 @@ function irAVista(v){
   if(v==='inicio'){ renderStats(); }
   if(v==='clientes'){ renderClientesTable(); }
   if(v==='planes'){ renderPlanesTable(); }
+  if(v==='infomegas'){ renderNodosTable(); }
   if(v==='pagos'){ renderPagosTable(document.getElementById('buscarPago').value); }
   if(v==='instalaciones'){ renderEquiposTable(); }
   if(v==='logs'){ renderLogsTable(); }
@@ -4515,6 +4749,7 @@ function initApp(){
   renderStats();
   renderClientesTable();
   renderPlanesTable();
+  renderNodosTable();
   renderPagosTable('');
   renderEquiposTable();
   renderLogsTable();
@@ -4527,7 +4762,7 @@ try{
   console.error('Error inicializando el panel:', err);
   // Red de seguridad: si algo falla al cargar los datos guardados, al menos
   // se reintenta cada parte por separado para no dejar toda la página en blanco.
-  [renderStats, renderClientesTable, renderPlanesTable, ()=>renderPagosTable(''), renderEquiposTable, renderLogsTable, renderUsuariosTable]
+  [renderStats, renderClientesTable, renderPlanesTable, renderNodosTable, ()=>renderPagosTable(''), renderEquiposTable, renderLogsTable, renderUsuariosTable]
     .forEach(fn=>{ try{ fn(); }catch(e){ console.error(e); } });
   if(checkSession()){ try{ aplicarPermisos(); }catch(e){ console.error(e); } }
 }
