@@ -472,12 +472,17 @@
         <div class="stat-card">
           <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:14px;">
             <div class="stat-icon icon-orange" style="margin-bottom:0;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg></div>
-            <select id="filtroPendientePropietario" onchange="renderStats()" style="font-size:11px; padding:4px 8px; border-radius:8px; background:var(--bg-panel); border:1px solid var(--border-soft); color:var(--text-primary); max-width:120px;">
-              <option value="" style="background:var(--bg-panel); color:var(--text-primary);">Todos</option>
-              <option value="EDWIN" style="background:var(--bg-panel); color:var(--text-primary);">EDWIN</option>
-              <option value="IVAN" style="background:var(--bg-panel); color:var(--text-primary);">IVAN</option>
-              <option value="SOCIA" style="background:var(--bg-panel); color:var(--text-primary);">SOCIA</option>
-            </select>
+            <div style="display:flex; flex-direction:column; gap:5px; align-items:flex-end;">
+              <select id="filtroPendienteVereda" onchange="renderStats()" style="font-size:11px; padding:4px 8px; border-radius:8px; background:var(--bg-panel); border:1px solid var(--border-soft); color:var(--text-primary); max-width:140px;">
+                <option value="" style="background:var(--bg-panel); color:var(--text-primary);">Todas las veredas</option>
+              </select>
+              <select id="filtroPendientePropietario" onchange="renderStats()" style="font-size:11px; padding:4px 8px; border-radius:8px; background:var(--bg-panel); border:1px solid var(--border-soft); color:var(--text-primary); max-width:140px;">
+                <option value="" style="background:var(--bg-panel); color:var(--text-primary);">Todos</option>
+                <option value="EDWIN" style="background:var(--bg-panel); color:var(--text-primary);">EDWIN</option>
+                <option value="IVAN" style="background:var(--bg-panel); color:var(--text-primary);">IVAN</option>
+                <option value="SOCIA" style="background:var(--bg-panel); color:var(--text-primary);">SOCIA</option>
+              </select>
+            </div>
           </div>
           <div class="stat-label">Pendiente por Cobrar</div>
           <div class="stat-value mono" id="statPendiente">$0</div>
@@ -534,7 +539,7 @@
         </div>
         <div style="overflow-x:auto;">
           <table>
-            <thead><tr><th>Vereda / Zona</th><th>Clientes</th><th>Megas Vendidas</th><th>Recaudado Este Mes</th><th style="min-width:140px;">% Megas del Total</th></tr></thead>
+            <thead><tr><th>Vereda / Zona</th><th>Clientes</th><th>Megas Vendidas</th><th>Recaudado Este Mes</th><th>Pendiente por Cobrar</th><th style="min-width:140px;">% Megas del Total</th></tr></thead>
             <tbody id="tablaMegasVereda"></tbody>
           </table>
           <div class="empty-state" id="megasVeredaEmpty" style="display:none;">
@@ -3301,12 +3306,23 @@ function renderStats(){
   const clientesPagadosIds = new Set(pagosMes.map(p=>p.clienteId));
   const pendientesTodos = activosTodos.filter(c=>!clientesPagadosIds.has(c.id));
 
-  // "Pendiente por Cobrar" también se puede filtrar por propietario
+  // "Pendiente por Cobrar" también se puede filtrar por vereda y por propietario
+  const filtroVeredaPendienteSel = document.getElementById('filtroPendienteVereda');
+  if(filtroVeredaPendienteSel){
+    const veredaPendienteActual = filtroVeredaPendienteSel.value;
+    const veredasParaSelectPendiente = [...new Set(clientes.map(c=>(c.vereda||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'));
+    filtroVeredaPendienteSel.innerHTML = '<option value="">Todas las veredas</option>' +
+      veredasParaSelectPendiente.map(v=>`<option value="${v.replace(/"/g,'&quot;')}">${v}</option>`).join('');
+    filtroVeredaPendienteSel.value = veredasParaSelectPendiente.includes(veredaPendienteActual) ? veredaPendienteActual : '';
+  }
+  const veredaFiltroPendiente = filtroVeredaPendienteSel ? filtroVeredaPendienteSel.value : '';
   const filtroPendienteSel = document.getElementById('filtroPendientePropietario');
   const propietarioFiltroPendiente = filtroPendienteSel ? filtroPendienteSel.value : '';
-  const pendientes = propietarioFiltroPendiente
-    ? pendientesTodos.filter(c=>c.propietario === propietarioFiltroPendiente)
-    : pendientesTodos;
+  const pendientes = pendientesTodos.filter(c=>{
+    if(propietarioFiltroPendiente && c.propietario !== propietarioFiltroPendiente) return false;
+    if(veredaFiltroPendiente && (c.vereda||'').trim() !== veredaFiltroPendiente) return false;
+    return true;
+  });
   const pendienteValor = pendientes.reduce((s,c)=>s+Number(c.precio||0),0);
 
   // "Total Clientes" también se puede filtrar por propietario
@@ -3336,7 +3352,7 @@ function renderStats(){
   const megasPorVereda = {};
   clientesParaMegas.forEach(c=>{
     const nombreVereda = (c.vereda || '').trim() || 'Sin vereda';
-    if(!megasPorVereda[nombreVereda]) megasPorVereda[nombreVereda] = { clientes:0, megas:0, recaudado:0 };
+    if(!megasPorVereda[nombreVereda]) megasPorVereda[nombreVereda] = { clientes:0, megas:0, recaudado:0, pendiente:0 };
     megasPorVereda[nombreVereda].clientes += 1;
     megasPorVereda[nombreVereda].megas += Number(c.planVelocidad || 0);
   });
@@ -3345,8 +3361,14 @@ function renderStats(){
     if(!c) return;
     if(filtroMegasValor && c.estado !== filtroMegasValor) return;
     const nombreVereda = (c.vereda || '').trim() || 'Sin vereda';
-    if(!megasPorVereda[nombreVereda]) megasPorVereda[nombreVereda] = { clientes:0, megas:0, recaudado:0 };
+    if(!megasPorVereda[nombreVereda]) megasPorVereda[nombreVereda] = { clientes:0, megas:0, recaudado:0, pendiente:0 };
     megasPorVereda[nombreVereda].recaudado += Number(p.valor || 0);
+  });
+  pendientesTodos.forEach(c=>{
+    if(filtroMegasValor && c.estado !== filtroMegasValor) return;
+    const nombreVereda = (c.vereda || '').trim() || 'Sin vereda';
+    if(!megasPorVereda[nombreVereda]) megasPorVereda[nombreVereda] = { clientes:0, megas:0, recaudado:0, pendiente:0 };
+    megasPorVereda[nombreVereda].pendiente += Number(c.precio || 0);
   });
   const filasMegasVereda = Object.keys(megasPorVereda)
     .map(nombre=>({ nombre, ...megasPorVereda[nombre] }))
@@ -3373,6 +3395,7 @@ function renderStats(){
         <td class="mono cell-muted">${f.clientes}</td>
         <td class="mono">${f.megas.toLocaleString('es-CO')} Mbps</td>
         <td class="mono">${fmtMoney(f.recaudado)}</td>
+        <td class="mono cell-muted">${fmtMoney(f.pendiente)}</td>
         <td>
           <div style="display:flex; align-items:center; gap:8px;">
             <div class="vereda-bar-track" style="flex:1;"><div class="vereda-bar-fill" style="width:${pct}%;"></div></div>
@@ -3406,7 +3429,9 @@ function renderStats(){
     + (veredaFiltroRecaudado ? ' — ' + veredaFiltroRecaudado : '')
     + (propietarioFiltro ? ' — clientes de ' + propietarioFiltro : (veredaFiltroRecaudado ? '' : ' (todos)'));
   document.getElementById('statPendiente').textContent = fmtMoney(pendienteValor);
-  document.getElementById('statPendienteNote').textContent = pendientes.length + ' cliente(s) sin pagar este mes' + (propietarioFiltroPendiente ? ' — clientes de ' + propietarioFiltroPendiente : '');
+  document.getElementById('statPendienteNote').textContent = pendientes.length + ' cliente(s) sin pagar este mes'
+    + (veredaFiltroPendiente ? ' — ' + veredaFiltroPendiente : '')
+    + (propietarioFiltroPendiente ? ' — clientes de ' + propietarioFiltroPendiente : '');
   document.getElementById('statTotalClientes').textContent = clientesFiltrados.length;
   document.getElementById('statTotalClientesNote').textContent = propietarioFiltroTotal ? 'Clientes de ' + propietarioFiltroTotal : 'Registrados en el sistema';
   document.getElementById('statEquipos').textContent = equiposFiltrados.length;
