@@ -152,6 +152,11 @@
   .icon-orange{ background:rgba(245,166,35,0.14); color:var(--warning); }
   .icon-red{ background:rgba(239,68,68,0.14); color:var(--danger); }
   .icon-cyan{ background:rgba(56,189,248,0.14); color:var(--accent-cyan); }
+  .icon-purple{ background:rgba(168,85,247,0.14); color:#c084fc; }
+
+  /* ---------- MEGAS POR VEREDA ---------- */
+  .vereda-bar-track{ background:rgba(255,255,255,0.06); border-radius:6px; height:7px; overflow:hidden; margin-top:6px; }
+  .vereda-bar-fill{ height:100%; border-radius:6px; background:linear-gradient(90deg,var(--accent),var(--accent-cyan)); }
 
   /* ---------- PANELS ---------- */
   .panel{ background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); padding:24px; margin-bottom:24px; }
@@ -500,6 +505,36 @@
           <div class="stat-label">Equipos Instalados</div>
           <div class="stat-value" id="statEquipos">0</div>
           <div class="stat-note" id="statEquiposNote">Routers, antenas y switches</div>
+        </div>
+        <div class="stat-card">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:14px;">
+            <div class="stat-icon icon-purple" style="margin-bottom:0;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h16M6 20V10M12 20V4M18 20v-7"/></svg></div>
+            <select id="filtroMegasEstado" onchange="renderStats()" style="font-size:11px; padding:4px 8px; border-radius:8px; background:var(--bg-panel); border:1px solid var(--border-soft); color:var(--text-primary); max-width:120px;">
+              <option value="" style="background:var(--bg-panel); color:var(--text-primary);">Todos</option>
+              <option value="activo" style="background:var(--bg-panel); color:var(--text-primary);">Solo activos</option>
+            </select>
+          </div>
+          <div class="stat-label">Megas Vendidas (Total)</div>
+          <div class="stat-value mono" id="statMegasTotal">0 Mbps</div>
+          <div class="stat-note" id="statMegasTotalNote">0 veredas con clientes</div>
+        </div>
+      </div>
+
+      <div class="panel" id="panelMegasVereda">
+        <div class="panel-head">
+          <div>
+            <h2>Megas Vendidas por Vereda</h2>
+            <div class="panel-sub" id="megasVeredaSub">Cuánto ancho de banda tienes contratado en cada vereda o zona</div>
+          </div>
+        </div>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead><tr><th>Vereda / Zona</th><th>Clientes</th><th>Megas Vendidas</th><th style="min-width:160px;">% del Total</th></tr></thead>
+            <tbody id="tablaMegasVereda"></tbody>
+          </table>
+          <div class="empty-state" id="megasVeredaEmpty" style="display:none;">
+            <p>Aún no has registrado clientes con vereda para agrupar.</p>
+          </div>
         </div>
       </div>
 
@@ -880,7 +915,8 @@
         </div>
         <div class="form-field">
           <label>Vereda</label>
-          <input type="text" id="cVereda" required placeholder="Ej: Vereda Pedregal">
+          <input type="text" id="cVereda" required placeholder="Ej: Vereda Pedregal" list="listaVeredas">
+          <datalist id="listaVeredas"></datalist>
         </div>
         <div class="form-field">
           <label>Teléfono</label>
@@ -3265,6 +3301,65 @@ function renderStats(){
   const equiposFiltrados = propietarioFiltroEquipos
     ? equipos.filter(e=>{ const c = e.clienteId ? mapaClientesPorId[e.clienteId] : null; return c && c.propietario === propietarioFiltroEquipos; })
     : equipos;
+
+  // "Megas Vendidas por Vereda" — agrupa dinámicamente por el texto que cada
+  // cliente tenga en su campo Vereda, así que apenas se escribe una vereda
+  // nueva al crear/editar un cliente, esta aparece sola en la lista sin
+  // necesidad de tocar el código. Se puede filtrar para contar solo activos
+  // o todos los clientes (incluye suspendidos/bloqueados) con el selector.
+  const filtroMegasSel = document.getElementById('filtroMegasEstado');
+  const filtroMegasValor = filtroMegasSel ? filtroMegasSel.value : '';
+  const clientesParaMegas = filtroMegasValor ? clientes.filter(c=>c.estado===filtroMegasValor) : clientes;
+  const megasPorVereda = {};
+  clientesParaMegas.forEach(c=>{
+    const nombreVereda = (c.vereda || '').trim() || 'Sin vereda';
+    if(!megasPorVereda[nombreVereda]) megasPorVereda[nombreVereda] = { clientes:0, megas:0 };
+    megasPorVereda[nombreVereda].clientes += 1;
+    megasPorVereda[nombreVereda].megas += Number(c.planVelocidad || 0);
+  });
+  const filasMegasVereda = Object.keys(megasPorVereda)
+    .map(nombre=>({ nombre, ...megasPorVereda[nombre] }))
+    .sort((a,b)=> b.megas - a.megas);
+  const megasTotalGeneral = filasMegasVereda.reduce((s,f)=>s+f.megas,0);
+
+  document.getElementById('statMegasTotal').textContent = megasTotalGeneral.toLocaleString('es-CO') + ' Mbps';
+  document.getElementById('statMegasTotalNote').textContent = filtroMegasValor
+    ? filasMegasVereda.length + ' vereda(s) con clientes activos'
+    : filasMegasVereda.length + ' vereda(s) con clientes';
+
+  const tbodyMegasVereda = document.getElementById('tablaMegasVereda');
+  const emptyMegasVereda = document.getElementById('megasVeredaEmpty');
+  if(filasMegasVereda.length===0){
+    tbodyMegasVereda.innerHTML = '';
+    emptyMegasVereda.style.display = 'block';
+  } else {
+    emptyMegasVereda.style.display = 'none';
+    tbodyMegasVereda.innerHTML = filasMegasVereda.map(f=>{
+      const pct = megasTotalGeneral > 0 ? Math.round((f.megas / megasTotalGeneral) * 100) : 0;
+      return `
+      <tr>
+        <td>${f.nombre}</td>
+        <td class="mono cell-muted">${f.clientes}</td>
+        <td class="mono">${f.megas.toLocaleString('es-CO')} Mbps</td>
+        <td>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <div class="vereda-bar-track" style="flex:1;"><div class="vereda-bar-fill" style="width:${pct}%;"></div></div>
+            <span class="mono cell-muted" style="font-size:11.5px; min-width:32px; text-align:right;">${pct}%</span>
+          </div>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  // La lista desplegable de sugerencias del campo "Vereda" (en el formulario de
+  // Nuevo/Editar Cliente) se actualiza con las veredas ya usadas, para evitar
+  // duplicados por error de tipeo (ej: "Pedregal" vs "pedregal "). Sigue
+  // permitiendo escribir una vereda nueva libremente cuando aún no existe.
+  const listaVeredasEl = document.getElementById('listaVeredas');
+  if(listaVeredasEl){
+    const veredasUnicas = [...new Set(clientes.map(c=>(c.vereda||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'));
+    listaVeredasEl.innerHTML = veredasUnicas.map(v=>`<option value="${v.replace(/"/g,'&quot;')}"></option>`).join('');
+  }
 
   // "Estado de Clientes" (Activos/Suspendidos/Bloqueados/Vencidos) se filtra en conjunto
   const filtroEstadoSel = document.getElementById('filtroEstadoClientesPropietario');
