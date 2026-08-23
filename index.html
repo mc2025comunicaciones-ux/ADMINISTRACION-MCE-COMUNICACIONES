@@ -922,10 +922,10 @@
           </div>
           <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
             <select id="filtroEgresoProvPropietario" onchange="renderEgresosProveedoresTable()" style="font-size:13px; padding:8px 12px; border-radius:10px; background:var(--bg-panel); border:1px solid var(--border-soft); color:var(--text-primary);">
-              <option value="">Todos los propietarios</option>
-              <option value="EDWIN">EDWIN</option>
-              <option value="IVAN">IVAN</option>
-              <option value="SOCIA">SOCIA</option>
+              <option value="" style="background:var(--bg-panel); color:var(--text-primary);">Todos los propietarios</option>
+              <option value="EDWIN" style="background:var(--bg-panel); color:var(--text-primary);">EDWIN</option>
+              <option value="IVAN" style="background:var(--bg-panel); color:var(--text-primary);">IVAN</option>
+              <option value="SOCIA" style="background:var(--bg-panel); color:var(--text-primary);">SOCIA</option>
             </select>
             <button class="btn btn-primary btn-small" type="button" onclick="openEgresoProveedorModal()">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="width:14px;height:14px;"><path d="M12 5v14M5 12h14"/></svg>
@@ -953,10 +953,10 @@
           </div>
           <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
             <select id="filtroEgresoCompraPropietario" onchange="renderEgresosComprasTable()" style="font-size:13px; padding:8px 12px; border-radius:10px; background:var(--bg-panel); border:1px solid var(--border-soft); color:var(--text-primary);">
-              <option value="">Todos los propietarios</option>
-              <option value="EDWIN">EDWIN</option>
-              <option value="IVAN">IVAN</option>
-              <option value="SOCIA">SOCIA</option>
+              <option value="" style="background:var(--bg-panel); color:var(--text-primary);">Todos los propietarios</option>
+              <option value="EDWIN" style="background:var(--bg-panel); color:var(--text-primary);">EDWIN</option>
+              <option value="IVAN" style="background:var(--bg-panel); color:var(--text-primary);">IVAN</option>
+              <option value="SOCIA" style="background:var(--bg-panel); color:var(--text-primary);">SOCIA</option>
             </select>
             <button class="btn btn-primary btn-small" type="button" onclick="openEgresoCompraModal()">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="width:14px;height:14px;"><path d="M12 5v14M5 12h14"/></svg>
@@ -1005,7 +1005,7 @@
             <div class="panel-sub">Comparación mes a mes de lo recaudado contra lo pagado en proveedores y compras</div>
           </div>
         </div>
-        <div style="position:relative; height:280px;">
+        <div style="position:relative; height:260px;">
           <canvas id="graficoBalanceHistorico"></canvas>
         </div>
         <div class="empty-state" id="graficoBalanceEmpty" style="display:none;">
