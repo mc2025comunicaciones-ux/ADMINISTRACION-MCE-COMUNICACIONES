@@ -12,6 +12,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root{
     --bg-deep:#060a1f; --bg-panel:#0a0f2b; --bg-sidebar-1:#080c24; --bg-sidebar-2:#050814;
@@ -249,6 +250,21 @@
   .map-actions{ display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; }
   .modal-actions{ display:flex; justify-content:flex-end; gap:10px; margin-top:22px; padding-top:18px; border-top:1px solid var(--border); flex-wrap:wrap;}
 
+  /* ---------- BÚSQUEDA GLOBAL ---------- */
+  .busqueda-grupo-titulo{ font-size:10.5px; letter-spacing:1px; text-transform:uppercase; color:var(--text-faint); font-weight:600; padding:10px 12px 6px; }
+  .busqueda-resultado{
+    display:flex; align-items:center; gap:12px; padding:10px 12px; border-radius:10px; cursor:pointer;
+    transition:.12s;
+  }
+  .busqueda-resultado:hover{ background:rgba(255,255,255,0.05); }
+  .busqueda-resultado .b-icon{
+    width:34px; height:34px; border-radius:9px; display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  }
+  .busqueda-resultado .b-icon svg{ width:16px; height:16px; }
+  .busqueda-resultado .b-titulo{ font-size:13px; font-weight:600; color:var(--text-primary); }
+  .busqueda-resultado .b-sub{ font-size:11.5px; color:var(--text-muted); }
+  .busqueda-vacio{ text-align:center; padding:40px 20px; color:var(--text-faint); font-size:12.5px; }
+
   /* ---------- RECIBO ---------- */
   .recibo-paper{
     background:#ffffff; color:#111827; border-radius:10px; padding:32px 30px; width:100%; max-width:480px; margin:0 auto;
@@ -293,6 +309,8 @@
   }
   .toast.show{ opacity:1; transform:translateY(0); }
   .toast svg{ width:16px; height:16px; color:var(--success); flex-shrink:0; }
+  .toast.toast-alerta{ border-color:rgba(245,166,35,0.4); }
+  .toast.toast-alerta svg{ color:var(--warning); }
 
   @media print{
     body > *:not(#reciboPrintWrap){ display:none !important; }
@@ -329,6 +347,9 @@
     .panel-head{ flex-direction:column; align-items:flex-start; }
     .search-box{ max-width:100%; }
     .user-chip .uname, .user-chip .urole{ max-width:110px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    #btnBusquedaGlobal span{ display:none; }
+    #btnBusquedaGlobal{ padding:8px; margin-right:8px; }
+    #btnBusquedaGlobal svg{ margin:0; }
   }
 
   @media (max-width:480px){
@@ -434,6 +455,11 @@
         <div class="page-title" id="pageTitle">Inicio</div>
         <div class="page-sub" id="pageSub">Resumen operativo de tu red</div>
       </div>
+    </div>
+    <div class="user-chip" id="btnBusquedaGlobal" onclick="abrirBusquedaGlobal()" style="cursor:pointer; margin-right:12px;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px; color:var(--text-muted); margin-left:4px;"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      <span style="font-size:12.5px; color:var(--text-muted); padding-right:6px;">Buscar cliente, pago o equipo...</span>
+      <span class="mono" style="font-size:10px; color:var(--text-faint); background:rgba(255,255,255,0.06); padding:2px 6px; border-radius:5px; margin-right:2px;">Ctrl K</span>
     </div>
     <div class="user-chip">
       <div class="user-avatar" id="userChipAvatar">A</div>
@@ -560,6 +586,7 @@
             <tbody id="tablaMegasVereda"></tbody>
           </table>
           <div class="empty-state" id="megasVeredaEmpty" style="display:none;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 20h16M6 20V10M12 20V4M18 20v-7"/></svg>
             <p>Aún no has registrado clientes con vereda para agrupar.</p>
           </div>
         </div>
@@ -629,6 +656,7 @@
           <canvas id="graficoRecaudoHistorico"></canvas>
         </div>
         <div class="empty-state" id="graficoRecaudoEmpty" style="display:none;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 20h16M6 20V10M12 20V4M18 20v-7"/></svg>
           <p>Aún no hay pagos registrados para mostrar la tendencia.</p>
         </div>
       </div>
@@ -647,6 +675,7 @@
             <tbody id="tablaInicioPagos"></tbody>
           </table>
           <div class="empty-state" id="inicioPagosEmpty" style="display:none;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.5 3-6 6.5-6s6.5 2.5 6.5 6"/></svg>
             <p>Aún no has registrado clientes.</p>
           </div>
         </div>
@@ -713,6 +742,7 @@
             <tbody id="tablaPlanes"></tbody>
           </table>
           <div class="empty-state" id="planesEmpty" style="display:none;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
             <p>No has creado planes todavía. Crea el primero con "Nuevo Plan".</p>
           </div>
         </div>
@@ -774,6 +804,7 @@
             <tbody id="tablaNodos"></tbody>
           </table>
           <div class="empty-state" id="nodosEmpty" style="display:none;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="5" r="2.2"/><circle cx="5" cy="19" r="2.2"/><circle cx="19" cy="19" r="2.2"/><path d="M12 7.2v4.8M12 12l-5.2 5.2M12 12l5.2 5.2"/></svg>
             <p>Aún no has creado nodos. Crea el primero con "Nuevo Nodo" para empezar a controlar la saturación.</p>
           </div>
         </div>
@@ -817,6 +848,7 @@
             <tbody id="tablaPagos"></tbody>
           </table>
           <div class="empty-state" id="pagosEmpty" style="display:none;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
             <p>No se encontraron clientes con ese criterio de búsqueda.</p>
           </div>
         </div>
@@ -911,6 +943,7 @@
             <tbody id="tablaLogs"></tbody>
           </table>
           <div class="empty-state" id="logsEmpty" style="display:none;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
             <p>Todavía no hay actividad registrada.</p>
           </div>
         </div>
@@ -939,6 +972,7 @@
             <tbody id="tablaUsuarios"></tbody>
           </table>
           <div class="empty-state" id="usuariosEmpty" style="display:none;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
             <p>No has creado usuarios adicionales todavía.</p>
           </div>
         </div>
@@ -999,6 +1033,32 @@
         </div>
         <div class="coord-display" style="margin-top:14px; color:var(--text-muted); align-items:flex-start; line-height:1.6;">
           Esta copia se guarda como un archivo .json en tu dispositivo (descárgalo a Drive, correo o donde prefieras). Sirve para recuperar tu información si algo le pasa al navegador o al equipo. "Restaurar" reemplaza TODA la información actual de este dispositivo por la del archivo — úsalo con cuidado, y de ser posible descarga una copia de seguridad actual antes de restaurar una vieja.
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Exportar Reportes a Excel</h2>
+            <div class="panel-sub">Descarga tus datos en formato .xlsx, listos para abrir en Excel o Google Sheets — útil para tu contador o para llevar tus propios reportes</div>
+          </div>
+        </div>
+        <div class="modal-actions" style="justify-content:flex-start; border-top:none; padding-top:0; margin-top:0; flex-wrap:wrap;">
+          <button class="btn btn-outline" type="button" onclick="exportarClientesExcel()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;vertical-align:-3px;margin-right:4px;"><path d="M4 4h16v16H4z"/><path d="M4 10h16M10 4v16"/></svg>
+            Clientes (.xlsx)
+          </button>
+          <button class="btn btn-outline" type="button" onclick="exportarPagosExcel()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;vertical-align:-3px;margin-right:4px;"><path d="M4 4h16v16H4z"/><path d="M4 10h16M10 4v16"/></svg>
+            Historial de Pagos (.xlsx)
+          </button>
+          <button class="btn btn-outline" type="button" onclick="exportarCarteraExcel()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;vertical-align:-3px;margin-right:4px;"><path d="M4 4h16v16H4z"/><path d="M4 10h16M10 4v16"/></svg>
+            Cartera Vencida (.xlsx)
+          </button>
+        </div>
+        <div class="coord-display" style="margin-top:14px; color:var(--text-muted); align-items:flex-start; line-height:1.6;">
+          "Clientes" exporta tu base completa. "Historial de Pagos" exporta todos los pagos registrados (todos los meses). "Cartera Vencida" exporta solo los clientes activos que deben, con los días de mora y el valor pendiente — el reporte que más sirve para cobrar.
         </div>
       </div>
 
@@ -1287,6 +1347,7 @@
         <tbody id="tablaHistorialPagos"></tbody>
       </table>
       <div class="empty-state" id="historialPagosEmpty" style="display:none;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2V2z"/><path d="M9 7h6M9 11h6"/></svg>
         <p>Este cliente aún no tiene pagos registrados.</p>
       </div>
     </div>
@@ -1306,6 +1367,7 @@
         <tbody id="tablaHistorialNodo"></tbody>
       </table>
       <div class="empty-state" id="historialNodoEmpty" style="display:none;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 20h16M6 20V10M12 20V4M18 20v-7"/></svg>
         <p>Aún no hay historial guardado. Se va a guardar automáticamente un registro por mes cada vez que abras Info Mbps.</p>
       </div>
     </div>
@@ -1523,6 +1585,7 @@
         <tbody id="tablaRecordatorios"></tbody>
       </table>
       <div class="empty-state" id="recordatoriosEmpty" style="display:none; padding:30px 20px;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:36px;height:36px;margin-bottom:10px;"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
         <p>No hay clientes en este filtro.</p>
       </div>
     </div>
@@ -1537,8 +1600,24 @@
   </div>
 </div>
 
+<!-- ================= BÚSQUEDA GLOBAL ================= -->
+<div class="modal-overlay" id="modalBusquedaGlobal" style="align-items:flex-start; padding-top:80px;" onclick="if(event.target===this) cerrarBusquedaGlobal()">
+  <div class="modal" style="max-width:560px; padding:0; overflow:hidden;">
+    <div style="display:flex; align-items:center; gap:10px; padding:16px 20px; border-bottom:1px solid var(--border);">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:17px;height:17px; color:var(--text-faint); flex-shrink:0;"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      <input type="text" id="inputBusquedaGlobal" placeholder="Busca por nombre, cédula, vereda, teléfono, serial, MAC, N° de recibo..."
+        style="flex:1; background:none; border:none; outline:none; color:var(--text-primary); font-size:14px; font-family:'Inter',sans-serif;"
+        oninput="renderResultadosBusquedaGlobal(this.value)">
+      <button type="button" onclick="cerrarBusquedaGlobal()" style="background:none; border:none; color:var(--text-faint); cursor:pointer; padding:4px;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div id="resultadosBusquedaGlobal" style="max-height:60vh; overflow-y:auto; padding:8px;"></div>
+  </div>
+</div>
+
 <div class="toast" id="toast">
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 6 9 17l-5-5"/></svg>
+  <svg id="toastIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 6 9 17l-5-5"/></svg>
   <span id="toastMsg">Guardado correctamente</span>
 </div>
 
@@ -2632,6 +2711,94 @@ function descargarCopiaSeguridad(){
   showToast('Copia de seguridad descargada');
   logAccion('Copia de seguridad descargada', 'Respaldo local generado');
 }
+
+/* ===================== EXPORTAR A EXCEL (.xlsx) ===================== */
+function descargarXLSX(nombreArchivo, hojas){
+  if(typeof XLSX === 'undefined'){ showToast('No se pudo cargar el módulo de Excel. Revisa tu conexión a internet e inténtalo de nuevo.'); return; }
+  const wb = XLSX.utils.book_new();
+  Object.keys(hojas).forEach(nombreHoja=>{
+    const ws = XLSX.utils.json_to_sheet(hojas[nombreHoja]);
+    XLSX.utils.book_append_sheet(wb, ws, nombreHoja.slice(0,31));
+  });
+  XLSX.writeFile(wb, nombreArchivo);
+}
+
+function exportarClientesExcel(){
+  const clientes = getClientes();
+  if(clientes.length===0){ showToast('No hay clientes para exportar'); return; }
+  const filas = clientes.map(c=>({
+    'Nombre': c.nombre || '',
+    'Cédula': c.cedula || '',
+    'Vereda': c.vereda || '',
+    'Teléfono': c.telefono || '',
+    'WhatsApp': c.whatsapp || '',
+    'Plan': c.planNombre || '',
+    'Valor del Plan': Number(c.precio || 0),
+    'Propietario': c.propietario || '',
+    'Estado': c.estado || '',
+    'Fecha de Corte': mostrarFechaCorte(c),
+    'Latitud': c.lat != null ? c.lat : '',
+    'Longitud': c.lng != null ? c.lng : ''
+  }));
+  descargarXLSX('clientes_mce_' + periodoActual() + '.xlsx', { 'Clientes': filas });
+  showToast('Reporte de clientes descargado');
+  logAccion('Exportación a Excel', clientes.length + ' cliente(s) — Clientes');
+}
+
+function exportarPagosExcel(){
+  const pagos = getPagos();
+  if(pagos.length===0){ showToast('No hay pagos registrados para exportar'); return; }
+  const clientes = getClientes();
+  const mapaClientes = {};
+  clientes.forEach(c=> mapaClientes[c.id] = c);
+  const filas = [...pagos]
+    .sort((a,b)=> new Date(b.fecha) - new Date(a.fecha))
+    .map(p=>{
+      const c = mapaClientes[p.clienteId];
+      return {
+        'Fecha': new Date(p.fecha).toLocaleDateString('es-CO'),
+        'Cliente': c ? c.nombre : '(cliente eliminado)',
+        'Vereda': c ? (c.vereda || '') : '',
+        'Periodo': periodoTexto(normalizarPeriodo(p.periodo)),
+        'Valor': Number(p.valor || 0),
+        'Forma de Pago': p.formaPago || 'Efectivo',
+        'Propietario': c ? (c.propietario || '') : '',
+        'Autorizado Por': p.autorizadoPor || '',
+        'N° Recibo': p.numero || '',
+        'Enviado por WhatsApp': p.enviadoWhatsapp ? 'Sí' : 'No'
+      };
+    });
+  descargarXLSX('pagos_mce_' + periodoActual() + '.xlsx', { 'Pagos': filas });
+  showToast('Historial de pagos descargado');
+  logAccion('Exportación a Excel', pagos.length + ' pago(s) — Historial de Pagos');
+}
+
+function exportarCarteraExcel(){
+  const clientes = getClientes().filter(c=>c.estado==='activo');
+  const pagos = getPagos();
+  const periodoNorm = normalizarPeriodo(periodoActual());
+  const pagadosIds = new Set(pagos.filter(p=>normalizarPeriodo(p.periodo)===periodoNorm).map(p=>p.clienteId));
+  const pendientes = clientes.filter(c=>!pagadosIds.has(c.id));
+  if(pendientes.length===0){ showToast('No hay cartera pendiente — todos los clientes activos ya pagaron este mes'); return; }
+  const filas = pendientes
+    .map(c=>({ c, dias: diasHastaVencimiento(c) }))
+    .sort((a,b)=> a.dias - b.dias)
+    .map(({c, dias})=>({
+      'Cliente': c.nombre || '',
+      'Cédula': c.cedula || '',
+      'Vereda': c.vereda || '',
+      'Teléfono / WhatsApp': c.whatsapp || c.telefono || '',
+      'Propietario': c.propietario || '',
+      'Valor Adeudado': Number(c.precio || 0),
+      'Fecha de Corte': mostrarFechaCorte(c),
+      'Estado': dias < 0 ? 'Vencido' : (dias===0 ? 'Vence hoy' : 'Por vencer'),
+      'Días de Mora': dias < 0 ? Math.abs(dias) : 0
+    }));
+  descargarXLSX('cartera_vencida_mce_' + periodoActual() + '.xlsx', { 'Cartera Pendiente': filas });
+  showToast('Reporte de cartera descargado');
+  logAccion('Exportación a Excel', pendientes.length + ' cliente(s) — Cartera Vencida');
+}
+
 
 function restaurarCopiaSeguridad(event){
   const archivo = event.target.files[0];
@@ -3818,8 +3985,24 @@ document.getElementById('fechaHoy').textContent = new Date().toLocaleDateString(
 
 /* ===================== HELPERS ===================== */
 function fmtMoney(n){ return '$' + Number(n||0).toLocaleString('es-CO'); }
+/* Mensajes que, aunque empiecen con una palabra como "No", en realidad son
+   una buena noticia (no una alerta) — se muestran siempre en verde. */
+const TOAST_EXITO_FORZADO = [
+  'No hay cartera pendiente — todos los clientes activos ya pagaron este mes'
+];
+const ICONO_TOAST_EXITO = '<path d="M20 6 9 17l-5-5"/>';
+const ICONO_TOAST_ALERTA = '<circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><path d="M12 16.5v.01"/>';
+
+/* Detecta si el mensaje es una alerta (falta un dato, no hay permiso, algo
+   falló) o un éxito, para mostrar el ícono y color correctos — sin tener
+   que tocar cada llamada existente a showToast() por separado. */
 function showToast(msg){
   const t = document.getElementById('toast');
+  const icono = document.getElementById('toastIcon');
+  const esExitoForzado = TOAST_EXITO_FORZADO.includes(msg);
+  const pareceAlerta = !esExitoForzado && /^(no |ya existe|ya se est[aá]|primero |escribe |selecciona |completa |el número|ese nombre|este archivo|el archivo no|algo sali|error)/i.test(msg.trim());
+  t.classList.toggle('toast-alerta', pareceAlerta);
+  icono.innerHTML = pareceAlerta ? ICONO_TOAST_ALERTA : ICONO_TOAST_EXITO;
   document.getElementById('toastMsg').textContent = msg;
   t.classList.add('show');
   setTimeout(()=>t.classList.remove('show'), 2600);
@@ -3828,6 +4011,129 @@ function closeModal(id){
   document.getElementById(id).classList.remove('active');
   if(id === 'modalScan' || id === 'modalEquipo'){ detenerCodigoScan(); detenerOCRCamara(); }
 }
+
+/* ===================== BÚSQUEDA GLOBAL ===================== */
+function abrirBusquedaGlobal(){
+  const input = document.getElementById('inputBusquedaGlobal');
+  input.value = '';
+  renderResultadosBusquedaGlobal('');
+  document.getElementById('modalBusquedaGlobal').classList.add('active');
+  setTimeout(()=> input.focus(), 60);
+}
+function cerrarBusquedaGlobal(){
+  document.getElementById('modalBusquedaGlobal').classList.remove('active');
+}
+document.addEventListener('keydown', (e)=>{
+  if((e.ctrlKey || e.metaKey) && (e.key==='k' || e.key==='K')){
+    e.preventDefault();
+    abrirBusquedaGlobal();
+    return;
+  }
+  if(e.key === 'Escape'){
+    const modal = document.getElementById('modalBusquedaGlobal');
+    if(modal && modal.classList.contains('active')) cerrarBusquedaGlobal();
+  }
+});
+
+/* Busca en clientes, pagos y equipos a la vez y arma la lista de resultados agrupada */
+function renderResultadosBusquedaGlobal(valor){
+  const cont = document.getElementById('resultadosBusquedaGlobal');
+  const q = (valor || '').trim().toLowerCase();
+  if(q.length < 2){
+    cont.innerHTML = '<div class="busqueda-vacio">Escribe al menos 2 letras para buscar en clientes, pagos y equipos a la vez</div>';
+    return;
+  }
+
+  const clientes = getClientes();
+  const equipos = getEquipos();
+  const pagos = getPagos();
+  const mapaClientes = {};
+  clientes.forEach(c=> mapaClientes[c.id] = c);
+  const contiene = (v)=> (v!=null ? String(v) : '').toLowerCase().includes(q);
+
+  const resultadosClientes = clientes
+    .filter(c=> contiene(c.nombre) || contiene(c.cedula) || contiene(c.vereda) || contiene(c.telefono) || contiene(c.whatsapp) || contiene(c.propietario))
+    .slice(0, 6);
+
+  const resultadosPagos = pagos
+    .filter(p=>{
+      const c = mapaClientes[p.clienteId];
+      return contiene(p.numero) || contiene(c ? c.nombre : '') || contiene(periodoTexto(normalizarPeriodo(p.periodo)));
+    })
+    .sort((a,b)=> new Date(b.fecha) - new Date(a.fecha))
+    .slice(0, 6);
+
+  const resultadosEquipos = equipos
+    .filter(e=>{
+      const c = e.clienteId ? mapaClientes[e.clienteId] : null;
+      return contiene(e.nombre) || contiene(e.serial) || contiene(e.ip) || contiene(e.mac) || contiene(c ? c.nombre : '');
+    })
+    .slice(0, 6);
+
+  if(resultadosClientes.length===0 && resultadosPagos.length===0 && resultadosEquipos.length===0){
+    cont.innerHTML = '<div class="busqueda-vacio">Sin resultados para tu búsqueda</div>';
+    return;
+  }
+
+  let html = '';
+  if(resultadosClientes.length){
+    html += '<div class="busqueda-grupo-titulo">Clientes</div>';
+    html += resultadosClientes.map(c=> `
+      <div class="busqueda-resultado" onclick="irAResultadoBusqueda('cliente','${c.id}')">
+        <div class="b-icon icon-blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.5 3-6 6.5-6s6.5 2.5 6.5 6"/><circle cx="17" cy="8" r="2.6"/><path d="M15.5 14.2c2.8.3 5 2.6 5 5.8"/></svg></div>
+        <div>
+          <div class="b-titulo">${c.nombre || 'Sin nombre'}</div>
+          <div class="b-sub">${c.vereda || '—'} · ${c.cedula || 'sin cédula'} — ${badgeForEstado(c)}</div>
+        </div>
+      </div>`).join('');
+  }
+  if(resultadosPagos.length){
+    html += '<div class="busqueda-grupo-titulo">Pagos</div>';
+    html += resultadosPagos.map(p=>{
+      const c = mapaClientes[p.clienteId];
+      return `
+      <div class="busqueda-resultado" onclick="irAResultadoBusqueda('pago','${p.clienteId}')">
+        <div class="b-icon icon-green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div>
+        <div>
+          <div class="b-titulo">${c ? c.nombre : '(cliente eliminado)'} — ${fmtMoney(p.valor)}</div>
+          <div class="b-sub">Recibo N° ${p.numero || '—'} · ${periodoTexto(normalizarPeriodo(p.periodo))}</div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+  if(resultadosEquipos.length){
+    html += '<div class="busqueda-grupo-titulo">Equipos</div>';
+    html += resultadosEquipos.map(e=>{
+      const c = e.clienteId ? mapaClientes[e.clienteId] : null;
+      return `
+      <div class="busqueda-resultado" onclick="irAResultadoBusqueda('equipo','${e.id}')">
+        <div class="b-icon icon-cyan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/></svg></div>
+        <div>
+          <div class="b-titulo">${e.nombre || 'Equipo'} ${e.tipo ? '(' + e.tipo + ')' : ''}</div>
+          <div class="b-sub">Serial: ${e.serial || '—'} · ${c ? c.nombre : 'Sin asignar'}</div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+  cont.innerHTML = html;
+}
+
+/* Al hacer clic en un resultado: navega a la vista correspondiente y abre
+   directamente el registro (modal de edición, historial de pagos, etc.) */
+function irAResultadoBusqueda(tipo, id){
+  cerrarBusquedaGlobal();
+  if(tipo==='cliente'){
+    irAVista('clientes');
+    setTimeout(()=> openClienteModal(id), 150);
+  } else if(tipo==='pago'){
+    irAVista('pagos');
+    setTimeout(()=> verHistorialPagos(id), 150);
+  } else if(tipo==='equipo'){
+    irAVista('instalaciones');
+    setTimeout(()=> openEquipoModal(id), 150);
+  }
+}
+
 function badgeForEstado(cliente){
   const estado = cliente && cliente.estado ? cliente.estado : cliente;
   if(estado==='suspendido') return '<span class="badge badge-orange">● Suspendido</span>';
