@@ -1054,7 +1054,7 @@
           <button class="btn btn-outline" type="button" onclick="probarConexionSync()">Probar Conexión</button>
           <button class="btn btn-outline" type="button" onclick="diagnosticarPagos()">Diagnóstico: ¿Por qué no llegan los pagos?</button>
           <button class="btn btn-outline" type="button" onclick="diagnosticarUsuarios()">Diagnóstico: ¿Por qué no puede entrar el otro usuario?</button>
-          <button class="btn btn-outline" type="button" onclick="sincronizarTodosClientes()">Sincronizar Todo Ahora (Clientes, Planes, Pagos, Equipos, Usuarios, Logs)</button>
+          <button class="btn btn-outline" type="button" onclick="sincronizarTodosClientes()">Sincronizar Todo Ahora (Clientes, Planes, Pagos, Equipos, Usuarios, Logs, Egresos)</button>
           <button class="btn btn-green" type="button" onclick="importarDatosDesdeNube()">Importar / Actualizar Datos en Este Dispositivo</button>
         </div>
         <div class="coord-display" id="syncStatus" style="margin-top:16px; display:none;"></div>
@@ -2518,6 +2518,32 @@ async function syncEquipoToSheet(equipo){
   }catch(err){ return { ok:false, error: err.message }; }
 }
 
+/* Envía (crea o actualiza) un egreso (proveedor de megas o compra de equipo/material) en la Hoja de Google */
+async function syncEgresoToSheet(egreso){
+  const url = getSyncUrl();
+  if(!url) return { ok:false, skip:true };
+  const payload = { action:'upsertEgreso', data:{
+    id: egreso.id, tipo: egreso.tipo, fecha: egreso.fecha,
+    proveedor: egreso.proveedor || '', megas: egreso.megas || 0, precio: egreso.precio || 0,
+    descripcion: egreso.descripcion || '', cantidad: egreso.cantidad || 0, precioUnitario: egreso.precioUnitario || 0,
+    total: totalEgreso(egreso), propietario: egreso.propietario || '', nota: egreso.nota || ''
+  }};
+  try{
+    const res = await fetch(url, { method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' }, body: JSON.stringify(payload) });
+    return await res.json().catch(()=>({ok:true}));
+  }catch(err){ return { ok:false, error: err.message }; }
+}
+
+/* Borra un egreso de la Hoja de Google */
+async function eliminarEgresoDeSheet(egresoId){
+  const url = getSyncUrl();
+  if(!url) return { ok:false, skip:true };
+  try{
+    const res = await fetch(url, { method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' }, body: JSON.stringify({ action:'deleteEgreso', id: egresoId }) });
+    return await res.json().catch(()=>({ok:true}));
+  }catch(err){ return { ok:false, error: err.message }; }
+}
+
 /* Trae clientes, planes, pagos y equipos desde la Hoja y los guarda en este dispositivo */
 async function importarDatosDesdeNube(){
   const url = getSyncUrl();
@@ -2720,12 +2746,30 @@ async function importarDatosDesdeNube(){
     while(logsLocales.length > LOGS_MAX){ logsLocales.pop(); }
     setLogs(logsLocales);
 
+    // ---- Egresos (proveedores de megas y compras de equipos/materiales):
+    // se fusionan por id, igual que equipos. ----
+    const egresosLocales = getEgresos();
+    const idsEgresosLocales = new Set(egresosLocales.map(eg=>eg.id));
+    (remoto.egresos||[]).forEach(reg=>{
+      if(!reg.id || idsEgresosLocales.has(reg.id)) return;
+      egresosLocales.push({
+        id: reg.id, tipo: reg.tipo || 'compra', fecha: reg.fecha || '',
+        proveedor: reg.proveedor || '', megas: Number(reg.megas||0), precio: Number(reg.precio||0),
+        descripcion: reg.descripcion || '', cantidad: Number(reg.cantidad||0), precioUnitario: Number(reg.precioUnitario||0),
+        propietario: reg.propietario || 'EDWIN', nota: reg.nota || ''
+      });
+    });
+    setEgresos(egresosLocales);
+
     // Refresca toda la interfaz con los datos ya combinados
     renderStats(); renderClientesTable(); renderPlanesTable();
     renderPagosTable(document.getElementById('buscarPago').value);
     renderEquiposTable();
     renderUsuariosTable();
     renderLogsTable();
+    renderEgresosProveedoresTable();
+    renderEgresosComprasTable();
+    renderResumenEgresos();
 
     // Si el mapa de clientes ya estaba abierto/inicializado, se refresca
     // para que las coordenadas recién importadas aparezcan de inmediato.
@@ -2733,7 +2777,7 @@ async function importarDatosDesdeNube(){
       try { initBigMap(); } catch(e) {}
     }
 
-    let mensajeFinal = `✔ Importado: ${(remoto.clientes||[]).length} clientes, ${(remoto.planes||[]).length} planes, ${(remoto.pagos||[]).length} pagos, ${(remoto.equipos||[]).length} equipos, ${(remoto.usuarios||[]).length} usuarios, ${(remoto.logs||[]).length} registros de actividad revisados.`;
+    let mensajeFinal = `✔ Importado: ${(remoto.clientes||[]).length} clientes, ${(remoto.planes||[]).length} planes, ${(remoto.pagos||[]).length} pagos, ${(remoto.equipos||[]).length} equipos, ${(remoto.usuarios||[]).length} usuarios, ${(remoto.logs||[]).length} registros de actividad revisados, ${(remoto.egresos||[]).length} egresos revisados.`;
     if(idsClientesEliminadosPorAusencia.size > 0){
       mensajeFinal += ` 🗑 ${idsClientesEliminadosPorAusencia.size} cliente(s) que fueron eliminados desde otro dispositivo también se quitaron aquí.`;
     }
@@ -2742,7 +2786,7 @@ async function importarDatosDesdeNube(){
     }
     mostrarEstadoSync(mensajeFinal, usuariosConPermisosDudosos === 0);
     showToast('Datos importados desde la nube');
-    logAccion('Importación desde la nube', 'Clientes/Planes/Pagos/Equipos/Usuarios/Logs sincronizados a este dispositivo' + (idsClientesEliminadosPorAusencia.size > 0 ? ` (${idsClientesEliminadosPorAusencia.size} cliente(s) eliminados por sincronización)` : ''));
+    logAccion('Importación desde la nube', 'Clientes/Planes/Pagos/Equipos/Usuarios/Logs/Egresos sincronizados a este dispositivo' + (idsClientesEliminadosPorAusencia.size > 0 ? ` (${idsClientesEliminadosPorAusencia.size} cliente(s) eliminados por sincronización)` : ''));
   }catch(err){
     mostrarEstadoSync('No se pudo importar: ' + err.message, false);
   }
@@ -2766,7 +2810,8 @@ async function sincronizarTodosClientes(){
   const equipos = getEquipos();
   const usuarios = getUsuarios();
   const logs = getLogs();
-  const total = clientes.length + planes.length + pagos.length + equipos.length + usuarios.length + logs.length;
+  const egresos = getEgresos();
+  const total = clientes.length + planes.length + pagos.length + equipos.length + usuarios.length + logs.length + egresos.length;
   if(total===0){ showToast('No hay datos para sincronizar'); return; }
 
   let hecho = 0, ok = 0, fail = 0;
@@ -2804,10 +2849,15 @@ async function sincronizarTodosClientes(){
     if(r && r.ok) ok++; else fail++;
     hecho++; mostrarEstadoSync(`Sincronizando ${hecho} / ${total}...`, true);
   }
+  for(let i=0; i<egresos.length; i++){
+    const r = await syncEgresoToSheet(egresos[i]);
+    if(r && r.ok) ok++; else fail++;
+    hecho++; mostrarEstadoSync(`Sincronizando ${hecho} / ${total}...`, true);
+  }
 
   mostrarEstadoSync(`Listo: ${ok} registro(s) sincronizados` + (fail? `, ${fail} con error` : ''), fail===0);
   showToast('Sincronización masiva completada');
-  logAccion('Sincronización masiva', `${ok} registros sincronizados (clientes, planes, pagos, equipos, usuarios, logs), ${fail} con error`);
+  logAccion('Sincronización masiva', `${ok} registros sincronizados (clientes, planes, pagos, equipos, usuarios, logs, egresos), ${fail} con error`);
 }
 
 /* ===================== COPIA DE SEGURIDAD LOCAL ===================== */
@@ -3142,6 +3192,29 @@ function doPost(e) {
       return respuesta({ ok: true });
     }
 
+    if (payload.action === 'upsertEgreso') {
+      var hojaEgresos = obtenerHoja(ss, 'Egresos', ['id','tipo','fecha','proveedor','megas','precio','descripcion','cantidad','precioUnitario','total','propietario','nota']);
+      var dg2 = payload.data;
+      var filaEg = buscarFilaPorId(hojaEgresos, dg2.id);
+      var valoresEg = [
+        dg2.id || '', dg2.tipo || '', dg2.fecha || '',
+        dg2.proveedor || '', Number(dg2.megas || 0), Number(dg2.precio || 0),
+        dg2.descripcion || '', Number(dg2.cantidad || 0), Number(dg2.precioUnitario || 0), Number(dg2.total || 0),
+        dg2.propietario || '', dg2.nota || ''
+      ];
+      if (filaEg > 0) { hojaEgresos.getRange(filaEg, 1, 1, valoresEg.length).setValues([valoresEg]); }
+      else { hojaEgresos.appendRow(valoresEg); }
+      return respuesta({ ok: true });
+    }
+
+    if (payload.action === 'deleteEgreso') {
+      var hojaEgresosDel = ss.getSheetByName('Egresos');
+      if (!hojaEgresosDel) { return respuesta({ ok: true, eliminado: false }); }
+      var filaEgresoDel = buscarFilaPorId(hojaEgresosDel, payload.id);
+      if (filaEgresoDel > 0) { hojaEgresosDel.deleteRow(filaEgresoDel); return respuesta({ ok: true, eliminado: true }); }
+      return respuesta({ ok: true, eliminado: false });
+    }
+
     if (payload.action === 'listarTodo') {
       var datosCompletos = sheet.getDataRange().getValues();
       var clientesList = [];
@@ -3253,7 +3326,25 @@ function doPost(e) {
         }
       }
 
-      return respuesta({ ok: true, data: { clientes: clientesList, planes: planesList, pagos: pagosList, equipos: equiposList, usuarios: usuariosList, logs: logsList } });
+      var egresosList = [];
+      var hojaEgresosLeer = ss.getSheetByName('Egresos');
+      if (hojaEgresosLeer) {
+        var datosEgresosLeer = hojaEgresosLeer.getDataRange().getValues();
+        for (var r = 1; r < datosEgresosLeer.length; r++) {
+          var feg2 = datosEgresosLeer[r];
+          if (!feg2[0]) continue;
+          var fechaEgresoCelda = feg2[2];
+          egresosList.push({
+            id: feg2[0], tipo: feg2[1] || '',
+            fecha: (fechaEgresoCelda instanceof Date) ? Utilities.formatDate(fechaEgresoCelda, Session.getScriptTimeZone(), 'yyyy-MM-dd') : (fechaEgresoCelda || ''),
+            proveedor: feg2[3] || '', megas: Number(feg2[4] || 0), precio: Number(feg2[5] || 0),
+            descripcion: feg2[6] || '', cantidad: Number(feg2[7] || 0), precioUnitario: Number(feg2[8] || 0), total: Number(feg2[9] || 0),
+            propietario: feg2[10] || '', nota: feg2[11] || ''
+          });
+        }
+      }
+
+      return respuesta({ ok: true, data: { clientes: clientesList, planes: planesList, pagos: pagosList, equipos: equiposList, usuarios: usuariosList, logs: logsList, egresos: egresosList } });
     }
 
     if (payload.action === 'diagnosticoPagos') {
@@ -5931,6 +6022,7 @@ document.getElementById('formEgresoProveedor').addEventListener('submit', functi
   closeModal('modalEgresoProveedor');
   showToast('Proveedor guardado correctamente');
   logAccion(esNuevo ? 'Proveedor de megas creado' : 'Proveedor de megas editado', proveedor + ' — ' + megas + ' Mbps — ' + fmtMoney(precio));
+  if(getSyncUrl() && getSyncAuto()){ syncEgresoToSheet(registro); }
 });
 
 /* ---------- Compras de equipos / materiales ---------- */
@@ -6012,6 +6104,7 @@ document.getElementById('formEgresoCompra').addEventListener('submit', function(
   closeModal('modalEgresoCompra');
   showToast('Compra guardada correctamente');
   logAccion(esNuevo ? 'Compra registrada' : 'Compra editada', descripcion + ' x' + cantidad + ' — ' + fmtMoney(totalEgreso(registro)));
+  if(getSyncUrl() && getSyncAuto()){ syncEgresoToSheet(registro); }
 });
 
 function deleteEgreso(id){
@@ -6023,6 +6116,11 @@ function deleteEgreso(id){
   renderResumenEgresos();
   showToast('Registro eliminado');
   logAccion('Egreso eliminado', e ? (e.proveedor || e.descripcion || id) : id);
+  if(getSyncUrl() && getSyncAuto()){
+    eliminarEgresoDeSheet(id).then(r=>{
+      if(!r || !r.ok){ showToast('El egreso se borró aquí, pero no se pudo borrar de la Hoja (revisa Sincronización)'); }
+    });
+  }
 }
 
 /* ---------- Exportar / Importar en Excel (.xlsx) ---------- */
