@@ -420,6 +420,10 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/><circle cx="7" cy="7" r=".6" fill="currentColor"/><circle cx="7" cy="17" r=".6" fill="currentColor"/></svg>
       Instalaciones
     </button>
+    <button type="button" class="navlink" data-view="egresos">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 17 9 10l4 4 9-9"/><path d="M15 5h6v6"/></svg>
+      Egresos
+    </button>
     <button type="button" class="navlink" data-view="logs">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.2 3.2"/></svg>
       Logs
@@ -883,6 +887,92 @@
       </div>
     </section>
 
+    <!-- ===== VISTA EGRESOS ===== -->
+    <section class="view" id="view-egresos">
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Resumen de Egresos</h2>
+            <div class="panel-sub" id="resumenEgresosSub">Total pagado a proveedores de megas y en compras de equipos/materiales, por propietario</div>
+          </div>
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <button class="btn btn-outline btn-small" type="button" onclick="exportarEgresosExcel()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><path d="M12 3v13"/><path d="m7 12 5 5 5-5"/><path d="M4 21h16"/></svg>
+              Exportar a Excel
+            </button>
+            <button class="btn btn-outline btn-small" type="button" onclick="document.getElementById('inputImportarEgresosExcel').click()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><path d="M12 21V8"/><path d="m7 13 5-5 5 5"/><path d="M4 3h16"/></svg>
+              Importar desde Excel
+            </button>
+            <input type="file" id="inputImportarEgresosExcel" accept=".xlsx,.xls" style="display:none;" onchange="importarEgresosExcel(event)">
+          </div>
+        </div>
+        <div class="grid-cards" id="resumenEgresosGrid" style="margin-bottom:0;"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Proveedores de Internet (Megas)</h2>
+            <div class="panel-sub">Registra cada proveedor, cuántas megas te vende y el precio que pagas por ese enlace</div>
+          </div>
+          <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+            <select id="filtroEgresoProvPropietario" onchange="renderEgresosProveedoresTable()" style="font-size:13px; padding:8px 12px; border-radius:10px; background:var(--bg-panel); border:1px solid var(--border-soft); color:var(--text-primary);">
+              <option value="">Todos los propietarios</option>
+              <option value="EDWIN">EDWIN</option>
+              <option value="IVAN">IVAN</option>
+              <option value="SOCIA">SOCIA</option>
+            </select>
+            <button class="btn btn-primary btn-small" type="button" onclick="openEgresoProveedorModal()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="width:14px;height:14px;"><path d="M12 5v14M5 12h14"/></svg>
+              Nuevo Proveedor
+            </button>
+          </div>
+        </div>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead><tr><th>Fecha</th><th>Proveedor</th><th>Megas</th><th>Precio</th><th>Propietario</th><th>Nota</th><th></th></tr></thead>
+            <tbody id="tablaEgresosProveedores"></tbody>
+          </table>
+          <div class="empty-state" id="egresosProveedoresEmpty" style="display:none;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 20 4 14M9 20 9 9M14 20 14 5M19 20 19 12"/><path d="M2 20h20"/></svg>
+            <p>No has registrado proveedores de megas todavía. Agrega el primero con "Nuevo Proveedor".</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Compras de Equipos y Materiales</h2>
+            <div class="panel-sub">Registra los equipos o materiales comprados, su cantidad y precio</div>
+          </div>
+          <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+            <select id="filtroEgresoCompraPropietario" onchange="renderEgresosComprasTable()" style="font-size:13px; padding:8px 12px; border-radius:10px; background:var(--bg-panel); border:1px solid var(--border-soft); color:var(--text-primary);">
+              <option value="">Todos los propietarios</option>
+              <option value="EDWIN">EDWIN</option>
+              <option value="IVAN">IVAN</option>
+              <option value="SOCIA">SOCIA</option>
+            </select>
+            <button class="btn btn-primary btn-small" type="button" onclick="openEgresoCompraModal()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="width:14px;height:14px;"><path d="M12 5v14M5 12h14"/></svg>
+              Nueva Compra
+            </button>
+          </div>
+        </div>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead><tr><th>Fecha</th><th>Equipo / Material</th><th>Cantidad</th><th>Precio Unitario</th><th>Total</th><th>Propietario</th><th>Nota</th><th></th></tr></thead>
+            <tbody id="tablaEgresosCompras"></tbody>
+          </table>
+          <div class="empty-state" id="egresosComprasEmpty" style="display:none;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/></svg>
+            <p>No has registrado compras todavía. Agrega la primera con "Nueva Compra".</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- ===== VISTA LOGS ===== -->
     <section class="view" id="view-logs">
       <div class="panel">
@@ -1216,6 +1306,7 @@
             <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" id="pPlanes"> Planes</label>
             <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" id="pMapa"> Mapa Clientes</label>
             <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" id="pLogs"> Logs</label>
+            <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" id="pEgresos"> Egresos (proveedores de megas, compras)</label>
           </div>
         </div>
         <div class="form-field full">
@@ -1386,6 +1477,96 @@
       <div class="modal-actions">
         <button type="button" class="btn btn-outline" onclick="closeModal('modalEquipo')">Cancelar</button>
         <button type="submit" class="btn btn-primary">Guardar Equipo</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ================= MODAL EGRESO: PROVEEDOR DE MEGAS ================= -->
+<div class="modal-overlay" id="modalEgresoProveedor">
+  <div class="modal">
+    <div class="modal-title" id="egresoProveedorModalTitle">Nuevo Proveedor</div>
+    <div class="modal-sub">Registra cuántas megas te vende este proveedor y el precio que pagas</div>
+    <form id="formEgresoProveedor">
+      <input type="hidden" id="egProvId">
+      <div class="form-grid">
+        <div class="form-field full">
+          <label>Nombre del proveedor</label>
+          <input type="text" id="egProvNombre" required placeholder="Ej: Fibra XYZ S.A.S">
+        </div>
+        <div class="form-field">
+          <label>Megas contratadas (Mbps)</label>
+          <input type="number" id="egProvMegas" min="0" step="0.1" required placeholder="Ej: 100">
+        </div>
+        <div class="form-field">
+          <label>Precio</label>
+          <input type="number" id="egProvPrecio" min="0" step="1" required placeholder="Ej: 350000">
+        </div>
+        <div class="form-field">
+          <label>Propietario</label>
+          <select id="egProvPropietario" required>
+            <option value="EDWIN">EDWIN</option>
+            <option value="IVAN">IVAN</option>
+            <option value="SOCIA">SOCIA</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label>Fecha</label>
+          <input type="date" id="egProvFecha" required>
+        </div>
+        <div class="form-field full">
+          <label>Nota (opcional)</label>
+          <input type="text" id="egProvNota" placeholder="Ej: Pago mensual del enlace principal">
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" onclick="closeModal('modalEgresoProveedor')">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Guardar Proveedor</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ================= MODAL EGRESO: COMPRA DE EQUIPO/MATERIAL ================= -->
+<div class="modal-overlay" id="modalEgresoCompra">
+  <div class="modal">
+    <div class="modal-title" id="egresoCompraModalTitle">Nueva Compra</div>
+    <div class="modal-sub">Registra el equipo o material comprado, cantidad y precio</div>
+    <form id="formEgresoCompra">
+      <input type="hidden" id="egCompId">
+      <div class="form-grid">
+        <div class="form-field full">
+          <label>Equipo / Material</label>
+          <input type="text" id="egCompDescripcion" required placeholder="Ej: Router TP-Link, cable UTP, conectores...">
+        </div>
+        <div class="form-field">
+          <label>Cantidad</label>
+          <input type="number" id="egCompCantidad" min="0" step="1" required value="1">
+        </div>
+        <div class="form-field">
+          <label>Precio unitario</label>
+          <input type="number" id="egCompPrecioUnitario" min="0" step="1" required placeholder="Ej: 45000">
+        </div>
+        <div class="form-field">
+          <label>Propietario</label>
+          <select id="egCompPropietario" required>
+            <option value="EDWIN">EDWIN</option>
+            <option value="IVAN">IVAN</option>
+            <option value="SOCIA">SOCIA</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label>Fecha</label>
+          <input type="date" id="egCompFecha" required>
+        </div>
+        <div class="form-field full">
+          <label>Nota (opcional)</label>
+          <input type="text" id="egCompNota" placeholder="Ej: Compra para instalación en vereda El Roble">
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" onclick="closeModal('modalEgresoCompra')">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Guardar Compra</button>
       </div>
     </form>
   </div>
@@ -1595,26 +1776,26 @@ const PERMISOS_TOTAL = {
   clientes:{ver:true, crear:true, editar:true, eliminar:true},
   instalaciones:{ver:true, crear:true, editar:true, eliminar:true},
   pagos:{ver:true, registrar:true},
-  planes:true, mapa:true, logs:true,
+  planes:true, mapa:true, logs:true, egresos:true,
   usuarios:true, configuracion:true, descargarCodigo:true
 };
 const PRESETS_USUARIO = {
   tecnico: {
     clientes:{ver:true, crear:true, editar:false, eliminar:false},
     instalaciones:{ver:true, crear:true, editar:false, eliminar:false},
-    pagos:{ver:false, registrar:false}, planes:false, mapa:false, logs:false,
+    pagos:{ver:false, registrar:false}, planes:false, mapa:false, logs:false, egresos:false,
     usuarios:false, configuracion:false, descargarCodigo:false
   },
   cobrador: {
     clientes:{ver:true, crear:false, editar:false, eliminar:false},
     instalaciones:{ver:false, crear:false, editar:false, eliminar:false},
-    pagos:{ver:true, registrar:true}, planes:false, mapa:true, logs:false,
+    pagos:{ver:true, registrar:true}, planes:false, mapa:true, logs:false, egresos:false,
     usuarios:false, configuracion:false, descargarCodigo:false
   },
   socio: {
     clientes:{ver:true, crear:true, editar:true, eliminar:true},
     instalaciones:{ver:true, crear:true, editar:true, eliminar:true},
-    pagos:{ver:true, registrar:true}, planes:true, mapa:true, logs:true,
+    pagos:{ver:true, registrar:true}, planes:true, mapa:true, logs:true, egresos:true,
     usuarios:false, configuracion:true, descargarCodigo:false
   },
   total: PERMISOS_TOTAL
@@ -1638,6 +1819,7 @@ function normalizarPermisos(permisos){
     planes: !!p.planes,
     mapa: !!p.mapa,
     logs: !!p.logs,
+    egresos: !!p.egresos,
     usuarios: !!p.usuarios,
     configuracion: !!p.configuracion,
     descargarCodigo: !!p.descargarCodigo
@@ -1731,6 +1913,7 @@ function aplicarPermisos(){
   toggleNav('mapa', !!p.mapa);
   toggleNav('instalaciones', !!p.instalaciones.ver);
   toggleNav('logs', !!p.logs);
+  toggleNav('egresos', admin || p.egresos);
   toggleNav('usuarios', admin || p.usuarios);
   toggleNav('configuracion', admin || p.configuracion);
 
@@ -1785,6 +1968,7 @@ function aplicarPresetUsuario(preset){
   document.getElementById('pPlanes').checked = !!base.planes;
   document.getElementById('pMapa').checked = !!base.mapa;
   document.getElementById('pLogs').checked = !!base.logs;
+  document.getElementById('pEgresos').checked = !!base.egresos;
   document.getElementById('pUsuarios').checked = !!base.usuarios;
   document.getElementById('pConfiguracion').checked = !!base.configuracion;
   document.getElementById('pDescargarCodigo').checked = !!base.descargarCodigo;
@@ -1811,6 +1995,7 @@ function leerPermisosFormUsuario(){
     planes: document.getElementById('pPlanes').checked,
     mapa: document.getElementById('pMapa').checked,
     logs: document.getElementById('pLogs').checked,
+    egresos: document.getElementById('pEgresos').checked,
     usuarios: document.getElementById('pUsuarios').checked,
     configuracion: document.getElementById('pConfiguracion').checked,
     descargarCodigo: document.getElementById('pDescargarCodigo').checked,
@@ -1838,6 +2023,7 @@ function resumenPermisos(permisos){
   if(p.planes) partes.push('Planes');
   if(p.mapa) partes.push('Mapa');
   if(p.logs) partes.push('Logs');
+  if(p.egresos) partes.push('Egresos');
   if(p.usuarios) partes.push('Usuarios');
   if(p.configuracion) partes.push('Configuración');
   if(p.descargarCodigo) partes.push('Descargar código');
@@ -1876,7 +2062,7 @@ function openUsuarioModal(id){
   document.getElementById('usuarioId').value = '';
   document.getElementById('usuarioModalTitle').textContent = 'Nuevo Usuario';
   aplicarPresetUsuario('');
-  ['pClienteVer','pClienteCrear','pClienteEditar','pClienteEliminar','pInstVer','pInstCrear','pInstEditar','pInstEliminar','pPagosVer','pPagosRegistrar','pPlanes','pMapa','pLogs','pUsuarios','pConfiguracion','pDescargarCodigo'].forEach(id=>{
+  ['pClienteVer','pClienteCrear','pClienteEditar','pClienteEliminar','pInstVer','pInstCrear','pInstEditar','pInstEliminar','pPagosVer','pPagosRegistrar','pPlanes','pMapa','pLogs','pEgresos','pUsuarios','pConfiguracion','pDescargarCodigo'].forEach(id=>{
     document.getElementById(id).checked = false;
   });
   if(id){
@@ -1901,6 +2087,7 @@ function openUsuarioModal(id){
       document.getElementById('pPlanes').checked = perm.planes;
       document.getElementById('pMapa').checked = perm.mapa;
       document.getElementById('pLogs').checked = perm.logs;
+      document.getElementById('pEgresos').checked = perm.egresos;
       document.getElementById('pUsuarios').checked = perm.usuarios;
       document.getElementById('pConfiguracion').checked = perm.configuracion;
       document.getElementById('pDescargarCodigo').checked = perm.descargarCodigo;
@@ -2638,6 +2825,7 @@ const CLAVES_BACKUP_MAP = {
   logs: 'mce_logs',
   nodos: 'mce_nodos',
   historialNodos: 'mce_historial_nodos',
+  egresos: 'mce_egresos',
   reciboCounter: 'mce_recibo_counter',
   syncUrl: 'mce_sync_url',
   syncAuto: 'mce_sync_auto',
@@ -3890,11 +4078,13 @@ const titles = {
   pagos:['Pagos','Registra pagos, genera recibos y controla la cartera'],
   mapa:['Mapa de Clientes','Visualiza y reubica a tus clientes geográficamente'],
   instalaciones:['Instalaciones','Inventario de equipos de red en campo'],
+  egresos:['Egresos','Proveedores de megas y compras de equipos/materiales'],
   logs:['Logs','Historial de actividad del sistema'],
   usuarios:['Usuarios y Permisos','Crea usuarios adicionales y define su acceso'],
   configuracion:['Sincronización','Conecta este panel con tu página pública de clientes']
 };
 function irAVista(v){
+  if(v==='egresos' && !(esSuperAdmin() || permisosActuales().egresos)){ showToast('No tienes permiso para ver Egresos'); return; }
   if(v==='usuarios' && !(esSuperAdmin() || permisosActuales().usuarios)){ showToast('No tienes permiso para gestionar usuarios'); return; }
   if(v==='configuracion' && !(esSuperAdmin() || permisosActuales().configuracion)){ showToast('No tienes permiso para ver Configuración/Sincronización'); return; }
   document.querySelectorAll('.navlink').forEach(l=>l.classList.remove('active'));
@@ -3911,6 +4101,7 @@ function irAVista(v){
   if(v==='infomegas'){ renderNodosTable(); }
   if(v==='pagos'){ renderPagosTable(document.getElementById('buscarPago').value); }
   if(v==='instalaciones'){ renderEquiposTable(); }
+  if(v==='egresos'){ renderEgresosProveedoresTable(); renderEgresosComprasTable(); renderResumenEgresos(); }
   if(v==='logs'){ renderLogsTable(); }
   if(v==='usuarios'){ renderUsuariosTable(); }
   if(v==='configuracion'){ cargarConfigSyncUI(); }
@@ -5601,6 +5792,329 @@ function usarValorEscaneado(){
   if(scanTargetFieldId){ document.getElementById(scanTargetFieldId).value = valor; }
   showToast('Valor insertado en el campo');
   cerrarModalScan();
+}
+
+/* ===================== EGRESOS (Proveedores de megas + Compras de equipos/materiales) =====================
+   Se guardan en un solo arreglo local (mce_egresos), cada registro con
+   tipo:'proveedor' o tipo:'compra' para poder mostrarlos en tablas separadas.
+   Esta información queda incluida automáticamente en la Copia de Seguridad
+   (JSON) de la sección Sincronización, así que restaurándola en otro
+   dispositivo también se traen los egresos. Además se puede exportar/importar
+   directamente en Excel (.xlsx) desde esta misma vista. */
+const DB_KEY_EGRESOS = 'mce_egresos';
+function getEgresos(){ try{ return JSON.parse(localStorage.getItem(DB_KEY_EGRESOS) || '[]'); }catch(e){ return []; } }
+function setEgresos(list){ localStorage.setItem(DB_KEY_EGRESOS, JSON.stringify(list)); }
+function hoyISO(){ return new Date().toISOString().slice(0,10); }
+
+function totalEgreso(e){
+  if(e.tipo === 'proveedor') return Number(e.precio || 0);
+  return Number(e.cantidad || 0) * Number(e.precioUnitario || 0);
+}
+
+function renderResumenEgresos(){
+  const egresos = getEgresos();
+  const grid = document.getElementById('resumenEgresosGrid');
+  if(!grid) return;
+  const totalProveedores = egresos.filter(e=>e.tipo==='proveedor').reduce((s,e)=>s+totalEgreso(e),0);
+  const totalCompras = egresos.filter(e=>e.tipo==='compra').reduce((s,e)=>s+totalEgreso(e),0);
+  const porPropietario = {EDWIN:0, IVAN:0, SOCIA:0};
+  egresos.forEach(e=>{ if(porPropietario.hasOwnProperty(e.propietario)) porPropietario[e.propietario] += totalEgreso(e); });
+  grid.innerHTML = `
+    <div class="stat-card">
+      <div class="stat-icon icon-blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20 4 14M9 20 9 9M14 20 14 5M19 20 19 12"/><path d="M2 20h20"/></svg></div>
+      <div class="stat-label">Pagado a Proveedores</div>
+      <div class="stat-value">${fmtMoney(totalProveedores)}</div>
+      <div class="stat-note">${egresos.filter(e=>e.tipo==='proveedor').length} registro(s)</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon icon-orange"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/></svg></div>
+      <div class="stat-label">Compras de Equipos/Materiales</div>
+      <div class="stat-value">${fmtMoney(totalCompras)}</div>
+      <div class="stat-note">${egresos.filter(e=>e.tipo==='compra').length} registro(s)</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon icon-green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.5 3-6 6.5-6s6.5 2.5 6.5 6"/></svg></div>
+      <div class="stat-label">Total EDWIN</div>
+      <div class="stat-value">${fmtMoney(porPropietario.EDWIN)}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon icon-blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.5 3-6 6.5-6s6.5 2.5 6.5 6"/></svg></div>
+      <div class="stat-label">Total IVAN</div>
+      <div class="stat-value">${fmtMoney(porPropietario.IVAN)}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon icon-purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.5 3-6 6.5-6s6.5 2.5 6.5 6"/></svg></div>
+      <div class="stat-label">Total SOCIA</div>
+      <div class="stat-value">${fmtMoney(porPropietario.SOCIA)}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon icon-red"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M2 12h20"/></svg></div>
+      <div class="stat-label">Total General</div>
+      <div class="stat-value">${fmtMoney(totalProveedores + totalCompras)}</div>
+    </div>`;
+}
+
+/* ---------- Proveedores de megas ---------- */
+function renderEgresosProveedoresTable(){
+  const filtro = document.getElementById('filtroEgresoProvPropietario') ? document.getElementById('filtroEgresoProvPropietario').value : '';
+  let lista = getEgresos().filter(e=>e.tipo==='proveedor');
+  if(filtro) lista = lista.filter(e=>e.propietario===filtro);
+  lista = lista.slice().sort((a,b)=> new Date(b.fecha) - new Date(a.fecha));
+  const tbody = document.getElementById('tablaEgresosProveedores');
+  const empty = document.getElementById('egresosProveedoresEmpty');
+  if(!tbody) return;
+  if(lista.length===0){ tbody.innerHTML=''; if(empty) empty.style.display='block'; return; }
+  if(empty) empty.style.display='none';
+  tbody.innerHTML = lista.map(e=>`
+    <tr>
+      <td class="cell-muted">${e.fecha ? new Date(e.fecha+'T00:00:00').toLocaleDateString('es-CO') : '—'}</td>
+      <td class="cell-strong">${e.proveedor || ''}</td>
+      <td class="mono cell-muted">${Number(e.megas||0)} Mbps</td>
+      <td class="mono cell-muted">${fmtMoney(e.precio)}</td>
+      <td>${badgeForPropietario(e.propietario)}</td>
+      <td class="cell-muted">${e.nota || '—'}</td>
+      <td>
+        <div class="row-actions">
+          <button class="icon-btn" type="button" onclick="openEgresoProveedorModal('${e.id}')" title="Editar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+          </button>
+          <button class="icon-btn danger" type="button" onclick="deleteEgreso('${e.id}')" title="Eliminar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0-1 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 6"/></svg>
+          </button>
+        </div>
+      </td>
+    </tr>`).join('');
+}
+
+function openEgresoProveedorModal(id){
+  document.getElementById('formEgresoProveedor').reset();
+  document.getElementById('egProvId').value = '';
+  document.getElementById('egresoProveedorModalTitle').textContent = 'Nuevo Proveedor';
+  document.getElementById('egProvFecha').value = hoyISO();
+  if(id){
+    const e = getEgresos().find(x=>x.id===id);
+    if(e){
+      document.getElementById('egresoProveedorModalTitle').textContent = 'Editar Proveedor';
+      document.getElementById('egProvId').value = e.id;
+      document.getElementById('egProvNombre').value = e.proveedor || '';
+      document.getElementById('egProvMegas').value = e.megas || '';
+      document.getElementById('egProvPrecio').value = e.precio || '';
+      document.getElementById('egProvPropietario').value = e.propietario || 'EDWIN';
+      document.getElementById('egProvFecha').value = e.fecha || hoyISO();
+      document.getElementById('egProvNota').value = e.nota || '';
+    }
+  }
+  document.getElementById('modalEgresoProveedor').classList.add('active');
+}
+
+document.getElementById('formEgresoProveedor').addEventListener('submit', function(ev){
+  ev.preventDefault();
+  const id = document.getElementById('egProvId').value || 'egp_'+Date.now();
+  const proveedor = document.getElementById('egProvNombre').value.trim();
+  const megas = Number(document.getElementById('egProvMegas').value);
+  const precio = Number(document.getElementById('egProvPrecio').value);
+  if(!proveedor || isNaN(megas) || isNaN(precio)){ showToast('Completa todos los campos requeridos'); return; }
+  const registro = {
+    id, tipo:'proveedor',
+    proveedor, megas, precio,
+    propietario: document.getElementById('egProvPropietario').value,
+    fecha: document.getElementById('egProvFecha').value || hoyISO(),
+    nota: document.getElementById('egProvNota').value.trim()
+  };
+  const egresos = getEgresos();
+  const idx = egresos.findIndex(x=>x.id===id);
+  const esNuevo = idx < 0;
+  if(idx>=0) egresos[idx] = registro; else egresos.push(registro);
+  setEgresos(egresos);
+  renderEgresosProveedoresTable();
+  renderResumenEgresos();
+  closeModal('modalEgresoProveedor');
+  showToast('Proveedor guardado correctamente');
+  logAccion(esNuevo ? 'Proveedor de megas creado' : 'Proveedor de megas editado', proveedor + ' — ' + megas + ' Mbps — ' + fmtMoney(precio));
+});
+
+/* ---------- Compras de equipos / materiales ---------- */
+function renderEgresosComprasTable(){
+  const filtro = document.getElementById('filtroEgresoCompraPropietario') ? document.getElementById('filtroEgresoCompraPropietario').value : '';
+  let lista = getEgresos().filter(e=>e.tipo==='compra');
+  if(filtro) lista = lista.filter(e=>e.propietario===filtro);
+  lista = lista.slice().sort((a,b)=> new Date(b.fecha) - new Date(a.fecha));
+  const tbody = document.getElementById('tablaEgresosCompras');
+  const empty = document.getElementById('egresosComprasEmpty');
+  if(!tbody) return;
+  if(lista.length===0){ tbody.innerHTML=''; if(empty) empty.style.display='block'; return; }
+  if(empty) empty.style.display='none';
+  tbody.innerHTML = lista.map(e=>`
+    <tr>
+      <td class="cell-muted">${e.fecha ? new Date(e.fecha+'T00:00:00').toLocaleDateString('es-CO') : '—'}</td>
+      <td class="cell-strong">${e.descripcion || ''}</td>
+      <td class="mono cell-muted">${Number(e.cantidad||0)}</td>
+      <td class="mono cell-muted">${fmtMoney(e.precioUnitario)}</td>
+      <td class="mono cell-muted">${fmtMoney(totalEgreso(e))}</td>
+      <td>${badgeForPropietario(e.propietario)}</td>
+      <td class="cell-muted">${e.nota || '—'}</td>
+      <td>
+        <div class="row-actions">
+          <button class="icon-btn" type="button" onclick="openEgresoCompraModal('${e.id}')" title="Editar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+          </button>
+          <button class="icon-btn danger" type="button" onclick="deleteEgreso('${e.id}')" title="Eliminar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0-1 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 6"/></svg>
+          </button>
+        </div>
+      </td>
+    </tr>`).join('');
+}
+
+function openEgresoCompraModal(id){
+  document.getElementById('formEgresoCompra').reset();
+  document.getElementById('egCompId').value = '';
+  document.getElementById('egresoCompraModalTitle').textContent = 'Nueva Compra';
+  document.getElementById('egCompFecha').value = hoyISO();
+  document.getElementById('egCompCantidad').value = 1;
+  if(id){
+    const e = getEgresos().find(x=>x.id===id);
+    if(e){
+      document.getElementById('egresoCompraModalTitle').textContent = 'Editar Compra';
+      document.getElementById('egCompId').value = e.id;
+      document.getElementById('egCompDescripcion').value = e.descripcion || '';
+      document.getElementById('egCompCantidad').value = e.cantidad || 1;
+      document.getElementById('egCompPrecioUnitario').value = e.precioUnitario || '';
+      document.getElementById('egCompPropietario').value = e.propietario || 'EDWIN';
+      document.getElementById('egCompFecha').value = e.fecha || hoyISO();
+      document.getElementById('egCompNota').value = e.nota || '';
+    }
+  }
+  document.getElementById('modalEgresoCompra').classList.add('active');
+}
+
+document.getElementById('formEgresoCompra').addEventListener('submit', function(ev){
+  ev.preventDefault();
+  const id = document.getElementById('egCompId').value || 'egc_'+Date.now();
+  const descripcion = document.getElementById('egCompDescripcion').value.trim();
+  const cantidad = Number(document.getElementById('egCompCantidad').value);
+  const precioUnitario = Number(document.getElementById('egCompPrecioUnitario').value);
+  if(!descripcion || isNaN(cantidad) || isNaN(precioUnitario)){ showToast('Completa todos los campos requeridos'); return; }
+  const registro = {
+    id, tipo:'compra',
+    descripcion, cantidad, precioUnitario,
+    propietario: document.getElementById('egCompPropietario').value,
+    fecha: document.getElementById('egCompFecha').value || hoyISO(),
+    nota: document.getElementById('egCompNota').value.trim()
+  };
+  const egresos = getEgresos();
+  const idx = egresos.findIndex(x=>x.id===id);
+  const esNuevo = idx < 0;
+  if(idx>=0) egresos[idx] = registro; else egresos.push(registro);
+  setEgresos(egresos);
+  renderEgresosComprasTable();
+  renderResumenEgresos();
+  closeModal('modalEgresoCompra');
+  showToast('Compra guardada correctamente');
+  logAccion(esNuevo ? 'Compra registrada' : 'Compra editada', descripcion + ' x' + cantidad + ' — ' + fmtMoney(totalEgreso(registro)));
+});
+
+function deleteEgreso(id){
+  if(!confirm('¿Eliminar este registro de egreso?')) return;
+  const e = getEgresos().find(x=>x.id===id);
+  setEgresos(getEgresos().filter(x=>x.id!==id));
+  renderEgresosProveedoresTable();
+  renderEgresosComprasTable();
+  renderResumenEgresos();
+  showToast('Registro eliminado');
+  logAccion('Egreso eliminado', e ? (e.proveedor || e.descripcion || id) : id);
+}
+
+/* ---------- Exportar / Importar en Excel (.xlsx) ---------- */
+function exportarEgresosExcel(){
+  const egresos = getEgresos();
+  if(egresos.length===0){ showToast('No hay egresos para exportar'); return; }
+  const proveedores = egresos.filter(e=>e.tipo==='proveedor').map(e=>({
+    'Fecha': e.fecha || '', 'Proveedor': e.proveedor || '', 'Megas (Mbps)': Number(e.megas||0),
+    'Precio': Number(e.precio||0), 'Propietario': e.propietario || '', 'Nota': e.nota || ''
+  }));
+  const compras = egresos.filter(e=>e.tipo==='compra').map(e=>({
+    'Fecha': e.fecha || '', 'Equipo / Material': e.descripcion || '', 'Cantidad': Number(e.cantidad||0),
+    'Precio Unitario': Number(e.precioUnitario||0), 'Total': totalEgreso(e),
+    'Propietario': e.propietario || '', 'Nota': e.nota || ''
+  }));
+  const hojas = {};
+  if(proveedores.length) hojas['Proveedores Megas'] = proveedores;
+  if(compras.length) hojas['Compras Equipos-Materiales'] = compras;
+  descargarXLSX('egresos_mce_' + periodoActual() + '.xlsx', hojas);
+  showToast('Egresos exportados a Excel');
+  logAccion('Exportación a Excel', egresos.length + ' egreso(s) — Proveedores y Compras');
+}
+
+/* Lee un .xlsx exportado con exportarEgresosExcel (mismas dos hojas) y agrega
+   sus filas a los egresos guardados en este dispositivo — así lo generado en
+   un dispositivo se puede llevar a otro simplemente exportando e importando
+   el archivo Excel. No borra lo que ya había, solo agrega lo nuevo. */
+function importarEgresosExcel(event){
+  const archivo = event.target.files[0];
+  if(!archivo) return;
+  if(typeof XLSX === 'undefined'){ showToast('No se pudo cargar el módulo de Excel. Revisa tu conexión a internet.'); event.target.value=''; return; }
+  const lector = new FileReader();
+  lector.onload = function(e){
+    let wb;
+    try{
+      wb = XLSX.read(new Uint8Array(e.target.result), { type:'array' });
+    }catch(err){
+      showToast('No se pudo leer el archivo Excel'); event.target.value=''; return;
+    }
+    const egresos = getEgresos();
+    let agregados = 0;
+    const propietariosValidos = ['EDWIN','IVAN','SOCIA'];
+
+    const hojaProv = wb.Sheets['Proveedores Megas'];
+    if(hojaProv){
+      const filas = XLSX.utils.sheet_to_json(hojaProv);
+      filas.forEach((f,i)=>{
+        const propietario = propietariosValidos.includes(f['Propietario']) ? f['Propietario'] : 'EDWIN';
+        egresos.push({
+          id: 'egp_' + Date.now() + '_' + i,
+          tipo:'proveedor',
+          proveedor: String(f['Proveedor']||'').trim(),
+          megas: Number(f['Megas (Mbps)']||0),
+          precio: Number(f['Precio']||0),
+          propietario,
+          fecha: f['Fecha'] || hoyISO(),
+          nota: f['Nota'] || ''
+        });
+        agregados++;
+      });
+    }
+
+    const hojaComp = wb.Sheets['Compras Equipos-Materiales'];
+    if(hojaComp){
+      const filas = XLSX.utils.sheet_to_json(hojaComp);
+      filas.forEach((f,i)=>{
+        const propietario = propietariosValidos.includes(f['Propietario']) ? f['Propietario'] : 'EDWIN';
+        egresos.push({
+          id: 'egc_' + Date.now() + '_' + i,
+          tipo:'compra',
+          descripcion: String(f['Equipo / Material']||'').trim(),
+          cantidad: Number(f['Cantidad']||0),
+          precioUnitario: Number(f['Precio Unitario']||0),
+          propietario,
+          fecha: f['Fecha'] || hoyISO(),
+          nota: f['Nota'] || ''
+        });
+        agregados++;
+      });
+    }
+
+    if(agregados===0){ showToast('El archivo no tiene hojas "Proveedores Megas" o "Compras Equipos-Materiales" reconocibles'); event.target.value=''; return; }
+
+    setEgresos(egresos);
+    renderEgresosProveedoresTable();
+    renderEgresosComprasTable();
+    renderResumenEgresos();
+    showToast(agregados + ' registro(s) de egresos importados desde Excel');
+    logAccion('Egresos importados desde Excel', agregados + ' registro(s) agregados');
+    event.target.value = '';
+  };
+  lector.readAsArrayBuffer(archivo);
 }
 
 /* ===================== INIT ===================== */
