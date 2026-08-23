@@ -424,6 +424,10 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 17 9 10l4 4 9-9"/><path d="M15 5h6v6"/></svg>
       Egresos
     </button>
+    <button type="button" class="navlink" data-view="balance">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6"/><rect x="12.5" y="8" width="3" height="10"/><rect x="18" y="5" width="3" height="13"/></svg>
+      Balance
+    </button>
     <button type="button" class="navlink" data-view="logs">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.2 3.2"/></svg>
       Logs
@@ -969,6 +973,44 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/></svg>
             <p>No has registrado compras todavía. Agrega la primera con "Nueva Compra".</p>
           </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== VISTA BALANCE (Ingresos vs Egresos) ===== -->
+    <section class="view" id="view-balance">
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Balance / Utilidad</h2>
+            <div class="panel-sub">Cruza lo recaudado (Pagos) contra lo pagado (Egresos) para saber qué te queda de utilidad</div>
+          </div>
+          <select id="selectorPeriodoBalance" onchange="renderBalance()" style="font-size:13px; padding:8px 12px; border-radius:10px; background:var(--bg-panel); border:1px solid var(--border-soft); color:var(--text-primary); min-width:190px;"></select>
+        </div>
+        <div style="margin-bottom:22px;">
+          <button class="btn btn-outline btn-small" type="button" onclick="descargarReportePDFMensual()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 15h6"/><path d="M9 11h6"/></svg>
+            Descargar Reporte PDF Mensual
+          </button>
+        </div>
+        <div class="grid-cards" id="gridBalanceGeneral" style="margin-bottom:22px;"></div>
+        <div class="panel-sub" style="margin-bottom:14px; text-transform:uppercase; font-size:11.5px; letter-spacing:0.6px; color:var(--text-faint);">Utilidad por propietario</div>
+        <div class="grid-cards" id="gridBalancePropietarios" style="margin-bottom:0;"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Ingresos vs Egresos — Últimos 12 Meses</h2>
+            <div class="panel-sub">Comparación mes a mes de lo recaudado contra lo pagado en proveedores y compras</div>
+          </div>
+        </div>
+        <div style="position:relative; height:280px;">
+          <canvas id="graficoBalanceHistorico"></canvas>
+        </div>
+        <div class="empty-state" id="graficoBalanceEmpty" style="display:none;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 20h16M6 20V10M12 20V4M18 20v-7"/></svg>
+          <p>Aún no hay suficientes pagos o egresos registrados para mostrar la tendencia.</p>
         </div>
       </div>
     </section>
@@ -1914,6 +1956,7 @@ function aplicarPermisos(){
   toggleNav('instalaciones', !!p.instalaciones.ver);
   toggleNav('logs', !!p.logs);
   toggleNav('egresos', admin || p.egresos);
+  toggleNav('balance', admin || p.egresos);
   toggleNav('usuarios', admin || p.usuarios);
   toggleNav('configuracion', admin || p.configuracion);
 
@@ -4170,12 +4213,14 @@ const titles = {
   mapa:['Mapa de Clientes','Visualiza y reubica a tus clientes geográficamente'],
   instalaciones:['Instalaciones','Inventario de equipos de red en campo'],
   egresos:['Egresos','Proveedores de megas y compras de equipos/materiales'],
+  balance:['Balance / Utilidad','Ingresos vs egresos y utilidad neta por propietario'],
   logs:['Logs','Historial de actividad del sistema'],
   usuarios:['Usuarios y Permisos','Crea usuarios adicionales y define su acceso'],
   configuracion:['Sincronización','Conecta este panel con tu página pública de clientes']
 };
 function irAVista(v){
   if(v==='egresos' && !(esSuperAdmin() || permisosActuales().egresos)){ showToast('No tienes permiso para ver Egresos'); return; }
+  if(v==='balance' && !(esSuperAdmin() || permisosActuales().egresos)){ showToast('No tienes permiso para ver el Balance'); return; }
   if(v==='usuarios' && !(esSuperAdmin() || permisosActuales().usuarios)){ showToast('No tienes permiso para gestionar usuarios'); return; }
   if(v==='configuracion' && !(esSuperAdmin() || permisosActuales().configuracion)){ showToast('No tienes permiso para ver Configuración/Sincronización'); return; }
   document.querySelectorAll('.navlink').forEach(l=>l.classList.remove('active'));
@@ -4193,6 +4238,7 @@ function irAVista(v){
   if(v==='pagos'){ renderPagosTable(document.getElementById('buscarPago').value); }
   if(v==='instalaciones'){ renderEquiposTable(); }
   if(v==='egresos'){ renderEgresosProveedoresTable(); renderEgresosComprasTable(); renderResumenEgresos(); }
+  if(v==='balance'){ renderBalance(); }
   if(v==='logs'){ renderLogsTable(); }
   if(v==='usuarios'){ renderUsuariosTable(); }
   if(v==='configuracion'){ cargarConfigSyncUI(); }
@@ -6213,6 +6259,332 @@ function importarEgresosExcel(event){
     event.target.value = '';
   };
   lector.readAsArrayBuffer(archivo);
+}
+
+/* ===================== BALANCE / UTILIDAD (Ingresos vs Egresos) =====================
+   Cruza los Pagos (ingresos, ligados a un cliente y por tanto a su
+   propietario) contra los Egresos (proveedores de megas + compras de
+   equipos/materiales) para mostrar cuánta utilidad neta queda, en total y
+   por propietario (EDWIN / IVAN / SOCIA). No guarda nada nuevo: solo lee
+   lo que ya existe en Pagos y Egresos. */
+
+/* Devuelve el propietario del pago consultando el cliente al que pertenece */
+function propietarioDePago(pago, mapaClientesPorId){
+  const c = mapaClientesPorId[pago.clienteId];
+  return (c && c.propietario) ? c.propietario : 'EDWIN';
+}
+
+/* Calcula ingresos, egresos y utilidad — total y por propietario — para un
+   periodo "YYYY-MM" dado, o para todo el histórico si periodo es '' */
+function calcularBalance(periodo){
+  const clientes = getClientes();
+  const mapaClientesPorId = {};
+  clientes.forEach(c=> mapaClientesPorId[c.id] = c);
+
+  const resultado = {
+    ingresos: 0, egresos: 0,
+    porPropietario: { EDWIN:{ingreso:0,egreso:0}, IVAN:{ingreso:0,egreso:0}, SOCIA:{ingreso:0,egreso:0} }
+  };
+
+  getPagos().forEach(p=>{
+    if(periodo && normalizarPeriodo(p.periodo) !== periodo) return;
+    const prop = propietarioDePago(p, mapaClientesPorId);
+    const valor = Number(p.valor||0);
+    resultado.ingresos += valor;
+    if(resultado.porPropietario[prop]) resultado.porPropietario[prop].ingreso += valor;
+  });
+
+  getEgresos().forEach(e=>{
+    const per = (e.fecha||'').slice(0,7);
+    if(periodo && per !== periodo) return;
+    const monto = totalEgreso(e);
+    resultado.egresos += monto;
+    const prop = resultado.porPropietario[e.propietario] ? e.propietario : 'EDWIN';
+    resultado.porPropietario[prop].egreso += monto;
+  });
+
+  return resultado;
+}
+
+/* Llena el selector de periodo con todos los meses que aparezcan en Pagos o
+   Egresos (más el mes actual aunque todavía no tenga movimientos), de más
+   reciente a más antiguo, y una opción "Todo el histórico" arriba de todo. */
+function renderSelectorPeriodoBalance(){
+  const sel = document.getElementById('selectorPeriodoBalance');
+  if(!sel) return;
+  const anterior = sel.value;
+  const periodos = new Set([periodoActual()]);
+  getPagos().forEach(p=> periodos.add(normalizarPeriodo(p.periodo)));
+  getEgresos().forEach(e=> { if(e.fecha) periodos.add(e.fecha.slice(0,7)); });
+  const listaOrdenada = [...periodos].filter(Boolean).sort().reverse();
+  sel.innerHTML = '<option value="">Todo el histórico</option>' +
+    listaOrdenada.map(p=>`<option value="${p}">${periodoTexto(p)}</option>`).join('');
+  sel.value = listaOrdenada.includes(anterior) ? anterior : periodoActual();
+}
+
+function renderBalance(){
+  renderSelectorPeriodoBalance();
+  const periodo = document.getElementById('selectorPeriodoBalance').value;
+  const b = calcularBalance(periodo);
+  const utilidad = b.ingresos - b.egresos;
+  const margen = b.ingresos > 0 ? (utilidad / b.ingresos * 100) : 0;
+
+  const gridGeneral = document.getElementById('gridBalanceGeneral');
+  if(gridGeneral){
+    gridGeneral.innerHTML = `
+      <div class="stat-card">
+        <div class="stat-icon icon-green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg></div>
+        <div class="stat-label">Ingresos (Pagos)</div>
+        <div class="stat-value">${fmtMoney(b.ingresos)}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon icon-red"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14"/><path d="m5 12 7 7 7-7"/></svg></div>
+        <div class="stat-label">Egresos (Proveedores + Compras)</div>
+        <div class="stat-value">${fmtMoney(b.egresos)}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon ${utilidad>=0 ? 'icon-blue' : 'icon-orange'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-4 4"/></svg></div>
+        <div class="stat-label">Utilidad Neta</div>
+        <div class="stat-value" style="color:${utilidad>=0 ? 'var(--success)' : 'var(--danger)'};">${fmtMoney(utilidad)}</div>
+        <div class="stat-note">Margen: ${margen.toFixed(1)}%</div>
+      </div>`;
+  }
+
+  const gridProp = document.getElementById('gridBalancePropietarios');
+  if(gridProp){
+    gridProp.innerHTML = ['EDWIN','IVAN','SOCIA'].map(prop=>{
+      const d = b.porPropietario[prop];
+      const ut = d.ingreso - d.egreso;
+      return `
+      <div class="stat-card">
+        <div class="stat-label">${badgeForPropietario(prop)}</div>
+        <div class="stat-value" style="font-size:20px; color:${ut>=0 ? 'var(--success)' : 'var(--danger)'};">${fmtMoney(ut)}</div>
+        <div class="stat-note">Ingresos ${fmtMoney(d.ingreso)} · Egresos ${fmtMoney(d.egreso)}</div>
+      </div>`;
+    }).join('');
+  }
+
+  renderGraficoBalanceHistorico();
+}
+
+let graficoBalanceInstancia = null;
+function renderGraficoBalanceHistorico(){
+  const canvas = document.getElementById('graficoBalanceHistorico');
+  const empty = document.getElementById('graficoBalanceEmpty');
+  if(!canvas || typeof Chart === 'undefined') return;
+
+  const pagos = getPagos();
+  const egresos = getEgresos();
+  if(pagos.length===0 && egresos.length===0){
+    canvas.style.display = 'none';
+    if(empty) empty.style.display = 'block';
+    if(graficoBalanceInstancia){ graficoBalanceInstancia.destroy(); graficoBalanceInstancia = null; }
+    return;
+  }
+  canvas.style.display = 'block';
+  if(empty) empty.style.display = 'none';
+
+  const hoy = new Date();
+  const periodos = [];
+  for(let i=11; i>=0; i--){
+    const d = new Date(hoy.getFullYear(), hoy.getMonth()-i, 1);
+    periodos.push(d.getFullYear()+'-'+pad2(d.getMonth()+1));
+  }
+  const ingresosPorPeriodo = {}; const egresosPorPeriodo = {};
+  periodos.forEach(p=>{ ingresosPorPeriodo[p]=0; egresosPorPeriodo[p]=0; });
+  pagos.forEach(p=>{
+    const per = normalizarPeriodo(p.periodo);
+    if(ingresosPorPeriodo.hasOwnProperty(per)) ingresosPorPeriodo[per] += Number(p.valor||0);
+  });
+  egresos.forEach(e=>{
+    const per = (e.fecha||'').slice(0,7);
+    if(egresosPorPeriodo.hasOwnProperty(per)) egresosPorPeriodo[per] += totalEgreso(e);
+  });
+
+  const etiquetas = periodos.map(p=>{
+    const [y,m] = p.split('-');
+    return MESES_ABREV[Number(m)-1] + ' ' + y.slice(2);
+  });
+  const valoresIngresos = periodos.map(p=>ingresosPorPeriodo[p]);
+  const valoresEgresos = periodos.map(p=>egresosPorPeriodo[p]);
+
+  if(graficoBalanceInstancia){ graficoBalanceInstancia.destroy(); }
+  graficoBalanceInstancia = new Chart(canvas.getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: etiquetas,
+      datasets: [
+        { label:'Ingresos', data: valoresIngresos, backgroundColor:'rgba(34,197,94,0.55)', borderColor:'rgba(34,197,94,1)', borderWidth:1, borderRadius:5, maxBarThickness:26 },
+        { label:'Egresos', data: valoresEgresos, backgroundColor:'rgba(239,68,68,0.55)', borderColor:'rgba(239,68,68,1)', borderWidth:1, borderRadius:5, maxBarThickness:26 }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { labels:{ color:'#8b96bd', font:{family:'Inter', size:11.5} } },
+        tooltip: { callbacks: { label: (ctx)=> ctx.dataset.label + ': ' + fmtMoney(ctx.parsed.y) } }
+      },
+      scales: {
+        x: { grid:{ display:false }, ticks:{ color:'#8b96bd', font:{family:'Inter', size:11} } },
+        y: {
+          grid:{ color:'rgba(255,255,255,0.06)' },
+          ticks:{ color:'#8b96bd', font:{family:'Inter', size:11}, callback:(v)=> fmtMoney(v) }
+        }
+      }
+    }
+  });
+}
+
+/* ===================== REPORTE PDF MENSUAL ===================== */
+/* Dibuja una tabla simple (encabezado + filas) con jsPDF, partiendo la
+   tabla en varias páginas si no cabe, repitiendo el encabezado en cada
+   página nueva. Devuelve la posición Y donde quedó el cursor. */
+function pdfDibujarTabla(doc, x, colWidths, headers, filas, y, pageH, margenInf, alinDerecha){
+  const rowH = 7;
+  const anchoTotal = colWidths.reduce((a,b)=>a+b,0);
+  function dibujarEncabezado(yy){
+    doc.setFillColor(243,244,246);
+    doc.setDrawColor(156,163,175);
+    doc.rect(x, yy, anchoTotal, rowH, 'FD');
+    doc.setFont('helvetica','bold'); doc.setFontSize(8.5); doc.setTextColor(17,24,39);
+    let cx = x;
+    headers.forEach((h,i)=>{
+      if(alinDerecha && alinDerecha[i]) doc.text(String(h), cx+colWidths[i]-2, yy+4.8, {align:'right'});
+      else doc.text(String(h), cx+2, yy+4.8);
+      cx += colWidths[i];
+    });
+    return yy+rowH;
+  }
+  y = dibujarEncabezado(y);
+  doc.setFont('helvetica','normal'); doc.setFontSize(8.2); doc.setTextColor(40,40,40);
+  filas.forEach(fila=>{
+    if(y > pageH - margenInf){
+      doc.addPage();
+      y = 20;
+      y = dibujarEncabezado(y);
+      doc.setFont('helvetica','normal'); doc.setFontSize(8.2); doc.setTextColor(40,40,40);
+    }
+    doc.setDrawColor(224,224,224);
+    doc.rect(x, y, anchoTotal, rowH);
+    let cx = x;
+    fila.forEach((valor,i)=>{
+      const texto = String(valor);
+      if(alinDerecha && alinDerecha[i]) doc.text(texto, cx+colWidths[i]-2, y+4.8, {align:'right'});
+      else doc.text(texto, cx+2, y+4.8);
+      cx += colWidths[i];
+    });
+    y += rowH;
+  });
+  return y;
+}
+
+/* Genera y descarga un PDF con el resumen del periodo elegido en Balance:
+   ingresos, egresos, utilidad, desglose por propietario y el detalle de
+   proveedores de megas y compras de ese mes (o de todo el histórico si
+   se eligió "Todo el histórico"). */
+function descargarReportePDFMensual(){
+  try{
+    if(typeof window.jspdf === 'undefined'){ showToast('No se pudo cargar el módulo de PDF. Revisa tu conexión a internet.'); return; }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit:'mm', format:'a4' });
+    const pageW = 210, pageH = 297, margenInf = 20;
+    let y = 18;
+
+    try{ doc.addImage(LOGO_B64, 'PNG', 15, y, 16, 16); }catch(e){}
+    doc.setFont('helvetica','bold'); doc.setFontSize(15); doc.setTextColor(17,24,39);
+    doc.text('MCE COMUNICACIONES', 35, y+7);
+    doc.setFont('helvetica','normal'); doc.setFontSize(10); doc.setTextColor(90,90,90);
+    doc.text('Reporte Mensual de Balance', 35, y+13);
+    y += 22;
+    doc.setDrawColor(209,213,219);
+    doc.line(15, y, pageW-15, y);
+    y += 8;
+
+    const selPeriodo = document.getElementById('selectorPeriodoBalance');
+    const periodo = selPeriodo ? selPeriodo.value : '';
+    const tituloPeriodo = periodo ? periodoTexto(periodo) : 'Todo el histórico';
+
+    doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(17,24,39);
+    doc.text('Periodo: ' + tituloPeriodo, 15, y);
+    doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(120,120,120);
+    doc.text('Generado el ' + new Date().toLocaleString('es-CO'), pageW-15, y, {align:'right'});
+    y += 10;
+
+    const b = calcularBalance(periodo);
+    const utilidad = b.ingresos - b.egresos;
+    const margen = b.ingresos > 0 ? (utilidad / b.ingresos * 100) : 0;
+
+    doc.setFont('helvetica','bold'); doc.setFontSize(10.5); doc.setTextColor(17,24,39);
+    doc.text('Resumen General', 15, y); y += 5;
+    y = pdfDibujarTabla(doc, 15, [90,80], ['Concepto','Valor'], [
+      ['Ingresos (Pagos)', fmtMoney(b.ingresos)],
+      ['Egresos (Proveedores + Compras)', fmtMoney(b.egresos)],
+      ['Utilidad Neta', fmtMoney(utilidad)],
+      ['Margen', margen.toFixed(1)+'%']
+    ], y, pageH, margenInf, [false,true]);
+    y += 10;
+
+    doc.setFont('helvetica','bold'); doc.setFontSize(10.5); doc.setTextColor(17,24,39);
+    doc.text('Utilidad por Propietario', 15, y); y += 5;
+    const filasProp = ['EDWIN','IVAN','SOCIA'].map(p=>{
+      const d = b.porPropietario[p];
+      return [p, fmtMoney(d.ingreso), fmtMoney(d.egreso), fmtMoney(d.ingreso-d.egreso)];
+    });
+    y = pdfDibujarTabla(doc, 15, [40,50,50,40], ['Propietario','Ingresos','Egresos','Utilidad'], filasProp, y, pageH, margenInf, [false,true,true,true]);
+    y += 10;
+
+    let proveedoresPeriodo = getEgresos().filter(e=>e.tipo==='proveedor');
+    if(periodo) proveedoresPeriodo = proveedoresPeriodo.filter(e=> (e.fecha||'').slice(0,7)===periodo);
+    proveedoresPeriodo.sort((a,c)=> new Date(a.fecha||0) - new Date(c.fecha||0));
+    if(y > pageH - margenInf - 20){ doc.addPage(); y = 20; }
+    doc.setFont('helvetica','bold'); doc.setFontSize(10.5); doc.setTextColor(17,24,39);
+    doc.text('Proveedores de Internet (Megas)', 15, y); y += 5;
+    if(proveedoresPeriodo.length===0){
+      doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(120,120,120);
+      doc.text('Sin registros en este periodo.', 15, y); y += 8;
+    } else {
+      const filasProv = proveedoresPeriodo.map(e=>[
+        e.fecha ? new Date(e.fecha+'T00:00:00').toLocaleDateString('es-CO') : '—',
+        e.proveedor || '', Number(e.megas||0)+' Mbps', fmtMoney(e.precio), e.propietario || ''
+      ]);
+      y = pdfDibujarTabla(doc, 15, [25,55,30,35,35], ['Fecha','Proveedor','Megas','Precio','Propietario'], filasProv, y, pageH, margenInf, [false,false,true,true,false]);
+      y += 10;
+    }
+
+    let comprasPeriodo = getEgresos().filter(e=>e.tipo==='compra');
+    if(periodo) comprasPeriodo = comprasPeriodo.filter(e=> (e.fecha||'').slice(0,7)===periodo);
+    comprasPeriodo.sort((a,c)=> new Date(a.fecha||0) - new Date(c.fecha||0));
+    if(y > pageH - margenInf - 20){ doc.addPage(); y = 20; }
+    doc.setFont('helvetica','bold'); doc.setFontSize(10.5); doc.setTextColor(17,24,39);
+    doc.text('Compras de Equipos y Materiales', 15, y); y += 5;
+    if(comprasPeriodo.length===0){
+      doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(120,120,120);
+      doc.text('Sin registros en este periodo.', 15, y); y += 8;
+    } else {
+      const filasComp = comprasPeriodo.map(e=>[
+        e.fecha ? new Date(e.fecha+'T00:00:00').toLocaleDateString('es-CO') : '—',
+        e.descripcion || '', String(Number(e.cantidad||0)), fmtMoney(e.precioUnitario), fmtMoney(totalEgreso(e)), e.propietario || ''
+      ]);
+      y = pdfDibujarTabla(doc, 15, [22,58,18,28,28,26], ['Fecha','Equipo/Material','Cant.','P. Unit','Total','Propietario'], filasComp, y, pageH, margenInf, [false,false,true,true,true,false]);
+    }
+
+    const totalPaginas = doc.internal.getNumberOfPages();
+    for(let p=1; p<=totalPaginas; p++){
+      doc.setPage(p);
+      doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(150,150,150);
+      doc.text('MCE Comunicaciones — Reporte Mensual', 15, pageH-10);
+      doc.text('Página ' + p + ' de ' + totalPaginas, pageW-15, pageH-10, {align:'right'});
+    }
+
+    const sufijoArchivo = (periodo || 'historico').replace(/[^0-9a-zA-Z-]+/g,'_');
+    doc.save('Reporte_Balance_' + sufijoArchivo + '.pdf');
+    showToast('Reporte PDF descargado');
+    logAccion('Reporte PDF mensual descargado', tituloPeriodo);
+  }catch(err){
+    console.error(err);
+    showToast('No se pudo generar el reporte PDF');
+  }
 }
 
 /* ===================== INIT ===================== */
