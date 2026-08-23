@@ -11,6 +11,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
 <style>
   :root{
     --bg-deep:#060a1f; --bg-panel:#0a0f2b; --bg-sidebar-1:#080c24; --bg-sidebar-2:#050814;
@@ -532,6 +533,18 @@
           <div class="stat-value mono" id="statMegasTotal">0 Mbps</div>
           <div class="stat-note" id="statMegasTotalNote">0 veredas con clientes</div>
         </div>
+        <div class="stat-card">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:14px;">
+            <div class="stat-icon icon-orange" style="margin-bottom:0;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v5l3 2"/><circle cx="12" cy="13" r="8"/><path d="M9 1h6M12 1v3"/></svg></div>
+            <button class="btn btn-whatsapp btn-small" type="button" onclick="abrirModalRecordatorios('porVencer')" style="padding:6px 12px; font-size:11.5px;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+              Recordar
+            </button>
+          </div>
+          <div class="stat-label">Por Vencer (3 días)</div>
+          <div class="stat-value mono" id="statPorVencer">0</div>
+          <div class="stat-note" id="statPorVencerNote">Clientes activos que se vencen pronto</div>
+        </div>
       </div>
 
       <div class="panel" id="panelMegasVereda">
@@ -558,12 +571,18 @@
             <h2>Estado de Clientes</h2>
             <div class="panel-sub">Distribución actual de tu cartera</div>
           </div>
-          <select id="filtroEstadoClientesPropietario" onchange="renderStats()" style="font-size:12px; padding:6px 10px; border-radius:8px; background:var(--bg-panel); border:1px solid var(--border-soft); color:var(--text-primary);">
-            <option value="" style="background:var(--bg-panel); color:var(--text-primary);">Todos</option>
-            <option value="EDWIN" style="background:var(--bg-panel); color:var(--text-primary);">EDWIN</option>
-            <option value="IVAN" style="background:var(--bg-panel); color:var(--text-primary);">IVAN</option>
-            <option value="SOCIA" style="background:var(--bg-panel); color:var(--text-primary);">SOCIA</option>
-          </select>
+          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <button class="btn btn-whatsapp btn-small" type="button" onclick="abrirModalRecordatorios('vencidos')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+              Enviar Recordatorios
+            </button>
+            <select id="filtroEstadoClientesPropietario" onchange="renderStats()" style="font-size:12px; padding:6px 10px; border-radius:8px; background:var(--bg-panel); border:1px solid var(--border-soft); color:var(--text-primary);">
+              <option value="" style="background:var(--bg-panel); color:var(--text-primary);">Todos</option>
+              <option value="EDWIN" style="background:var(--bg-panel); color:var(--text-primary);">EDWIN</option>
+              <option value="IVAN" style="background:var(--bg-panel); color:var(--text-primary);">IVAN</option>
+              <option value="SOCIA" style="background:var(--bg-panel); color:var(--text-primary);">SOCIA</option>
+            </select>
+          </div>
         </div>
         <div class="grid-cards" style="margin-bottom:0;">
           <div class="stat-card" style="padding:16px 20px;">
@@ -590,6 +609,27 @@
               <span class="stat-value mono" id="statVencidos" style="font-size:20px;">0</span>
             </div>
           </div>
+          <div class="stat-card" style="padding:16px 20px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+              <span class="badge badge-orange">● Por vencer (3 días)</span>
+              <span class="stat-value mono" id="statPorVencerBadge" style="font-size:20px;">0</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel" id="panelGraficoRecaudo">
+        <div class="panel-head">
+          <div>
+            <h2>Recaudo Histórico</h2>
+            <div class="panel-sub">Total recaudado mes a mes, según los pagos registrados</div>
+          </div>
+        </div>
+        <div style="position:relative; height:260px;">
+          <canvas id="graficoRecaudoHistorico"></canvas>
+        </div>
+        <div class="empty-state" id="graficoRecaudoEmpty" style="display:none;">
+          <p>Aún no hay pagos registrados para mostrar la tendencia.</p>
         </div>
       </div>
 
@@ -759,6 +799,10 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
               <input type="text" id="buscarPago" placeholder="Buscar por nombre o vereda..." oninput="renderPagosTable(this.value)">
             </div>
+            <button class="btn btn-whatsapp btn-small" type="button" onclick="abrirModalRecordatorios('vencidos')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+              Enviar Recordatorios
+            </button>
             <button class="btn btn-outline btn-small" type="button" id="btnReiniciarRecaudo" onclick="reiniciarRecaudo()">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 0 1 15.4-6.4L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15.4 6.4L3 16"/><path d="M3 21v-5h5"/></svg>
               Reiniciar Recaudo del Mes
@@ -1443,6 +1487,51 @@
       <button type="button" class="btn btn-whatsapp" id="btnEnviarWA" onclick="enviarReciboWhatsapp()">
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.5 14.4c-.3-.1-1.7-.9-2-1-.3-.1-.5-.1-.7.1-.2.3-.8 1-.9 1.1-.2.2-.3.2-.6.1-.3-.1-1.2-.5-2.3-1.5-.9-.8-1.4-1.7-1.6-2-.2-.3 0-.5.1-.6.1-.1.3-.3.4-.5.1-.1.2-.3.2-.4.1-.2 0-.3 0-.5-.1-.1-.7-1.7-1-2.3-.2-.6-.5-.5-.7-.5h-.6c-.2 0-.5.1-.8.4-.3.3-1 1-1 2.4s1.1 2.8 1.2 3c.1.2 2.1 3.3 5.2 4.5.7.3 1.3.5 1.7.6.7.2 1.4.2 1.9.1.6-.1 1.7-.7 2-1.4.2-.6.2-1.1.2-1.2-.1-.1-.3-.2-.6-.3z"/><path d="M12 2a10 10 0 0 0-8.6 15L2 22l5.1-1.3A10 10 0 1 0 12 2z"/></svg>
         Enviar por WhatsApp
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= MODAL RECORDATORIOS MASIVOS ================= -->
+<div class="modal-overlay" id="modalRecordatorios">
+  <div class="modal" style="max-width:640px;">
+    <div class="modal-title">Recordatorios de Pago por WhatsApp</div>
+    <div class="modal-sub">Un solo mensaje para todo el grupo — se abre WhatsApp automáticamente para cada cliente seleccionado, uno tras otro, sin que tengas que buscarlos de a uno</div>
+
+    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px;">
+      <button type="button" class="btn btn-outline btn-small" id="btnFiltroVencidos" onclick="cambiarFiltroRecordatorios('vencidos')">Vencidos (morosos)</button>
+      <button type="button" class="btn btn-outline btn-small" id="btnFiltroPorVencer" onclick="cambiarFiltroRecordatorios('porVencer')">Por vencer (3 días)</button>
+      <button type="button" class="btn btn-outline btn-small" id="btnFiltroPendientes" onclick="cambiarFiltroRecordatorios('pendientes')">Todos los pendientes del mes</button>
+    </div>
+
+    <div class="form-field full" style="margin-bottom:16px;">
+      <label>Mensaje (igual para todos — usa {nombre}, {plan}, {valor}, {corte} para que se rellenen solos)</label>
+      <textarea id="recordatorioMensaje" rows="5"></textarea>
+    </div>
+
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+      <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--text-muted); cursor:pointer;">
+        <input type="checkbox" id="chkSeleccionarTodosRecordatorios" checked onchange="marcarTodosRecordatorios(this.checked)">
+        Seleccionar todos
+      </label>
+      <span class="mono cell-muted" id="recordatorioContador" style="font-size:12px;">0 clientes</span>
+    </div>
+
+    <div style="max-height:320px; overflow-y:auto; border:1px solid var(--border); border-radius:10px;">
+      <table>
+        <thead><tr><th style="width:36px;"></th><th>Cliente</th><th>Vereda</th><th>Corte</th><th></th></tr></thead>
+        <tbody id="tablaRecordatorios"></tbody>
+      </table>
+      <div class="empty-state" id="recordatoriosEmpty" style="display:none; padding:30px 20px;">
+        <p>No hay clientes en este filtro.</p>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button type="button" class="btn btn-outline" onclick="closeModal('modalRecordatorios')">Cerrar</button>
+      <button type="button" class="btn btn-whatsapp" id="btnEnviarRecordatoriosMasivo" onclick="enviarRecordatoriosSeleccionados()">
+        <svg viewBox="0 0 24 24" fill="currentColor" style="width:15px;height:15px;"><path d="M17.5 14.4c-.3-.1-1.7-.9-2-1-.3-.1-.5-.1-.7.1-.2.3-.8 1-.9 1.1-.2.2-.3.2-.6.1-.3-.1-1.2-.5-2.3-1.5-.9-.8-1.4-1.7-1.6-2-.2-.3 0-.5.1-.6.1-.1.3-.3.4-.5.1-.1.2-.3.2-.4.1-.2 0-.3 0-.5-.1-.1-.7-1.7-1-2.3-.2-.6-.5-.5-.7-.5h-.6c-.2 0-.5.1-.8.4-.3.3-1 1-1 2.4s1.1 2.8 1.2 3c.1.2 2.1 3.3 5.2 4.5.7.3 1.3.5 1.7.6.7.2 1.4.2 1.9.1.6-.1 1.7-.7 2-1.4.2-.6.2-1.1.2-1.2-.1-.1-.3-.2-.6-.3z"/><path d="M12 2a10 10 0 0 0-8.6 15L2 22l5.1-1.3A10 10 0 1 0 12 2z"/></svg>
+        Enviar a los Seleccionados
       </button>
     </div>
   </div>
@@ -2515,7 +2604,8 @@ const CLAVES_BACKUP_MAP = {
   historialNodos: 'mce_historial_nodos',
   reciboCounter: 'mce_recibo_counter',
   syncUrl: 'mce_sync_url',
-  syncAuto: 'mce_sync_auto'
+  syncAuto: 'mce_sync_auto',
+  recordatorios: 'mce_recordatorios'
 };
 
 function descargarCopiaSeguridad(){
@@ -3051,6 +3141,22 @@ const DB_KEY_CLIENTES = 'mce_clientes';
 const DB_KEY_EQUIPOS = 'mce_equipos';
 const DB_KEY_PAGOS = 'mce_pagos';
 const DB_KEY_RECIBO_COUNTER = 'mce_recibo_counter';
+const DB_KEY_RECORDATORIOS = 'mce_recordatorios';
+function getRecordatorios(){ try{ return JSON.parse(localStorage.getItem(DB_KEY_RECORDATORIOS) || '[]'); }catch(e){ return []; } }
+function setRecordatorios(list){ localStorage.setItem(DB_KEY_RECORDATORIOS, JSON.stringify(list)); }
+/* Registra que a un cliente ya se le envió el recordatorio de este periodo, para no marcarlo dos veces por error */
+function marcarRecordatorioEnviado(clienteId){
+  const lista = getRecordatorios();
+  const periodo = periodoActual();
+  const idx = lista.findIndex(r=>r.clienteId===clienteId && r.periodo===periodo);
+  const registro = { clienteId, periodo, fecha: new Date().toISOString() };
+  if(idx>=0) lista[idx] = registro; else lista.push(registro);
+  setRecordatorios(lista);
+}
+function yaSeEnvioRecordatorio(clienteId){
+  const periodo = periodoActual();
+  return getRecordatorios().some(r=>r.clienteId===clienteId && r.periodo===periodo);
+}
 const DB_KEY_PLANES = 'mce_planes';
 
 function getPlanes(){ try{ return JSON.parse(localStorage.getItem(DB_KEY_PLANES) || '[]'); }catch(e){ return []; } }
@@ -3633,6 +3739,24 @@ function estaVencido(cliente){
   return venc < hoy;
 }
 
+/* Cuántos días faltan para la fecha de corte de un cliente (negativo si ya venció) */
+function diasHastaVencimiento(cliente){
+  const fecha = asegurarFechaVencimiento(cliente);
+  if(!fecha) return null;
+  const hoy = new Date();
+  hoy.setHours(0,0,0,0);
+  const venc = new Date(fecha+'T00:00:00');
+  return Math.round((venc - hoy) / 86400000);
+}
+
+/* Cliente activo cuyo corte cae dentro de los próximos N días (sin haber vencido aún) */
+function estaPorVencer(cliente, dias){
+  if(cliente.estado !== 'activo') return false;
+  if(estaVencido(cliente)) return false;
+  const restantes = diasHastaVencimiento(cliente);
+  return restantes !== null && restantes >= 0 && restantes <= dias;
+}
+
 /* ===================== NAVEGACIÓN ===================== */
 const titles = {
   inicio:['Inicio','Resumen operativo de tu red'],
@@ -3731,6 +3855,76 @@ function clienteYaPago(clienteId, periodo){
 }
 
 /* ===================== INICIO / STATS ===================== */
+/* ===================== GRÁFICA DE RECAUDO HISTÓRICO ===================== */
+let graficoRecaudoInstancia = null;
+function renderGraficoRecaudoHistorico(){
+  const canvas = document.getElementById('graficoRecaudoHistorico');
+  const empty = document.getElementById('graficoRecaudoEmpty');
+  if(!canvas || typeof Chart === 'undefined') return;
+
+  const pagos = getPagos();
+  if(pagos.length===0){
+    canvas.style.display = 'none';
+    empty.style.display = 'block';
+    if(graficoRecaudoInstancia){ graficoRecaudoInstancia.destroy(); graficoRecaudoInstancia = null; }
+    return;
+  }
+  canvas.style.display = 'block';
+  empty.style.display = 'none';
+
+  // Genera los últimos 12 periodos (YYYY-MM), incluyendo el actual, en orden cronológico
+  const hoy = new Date();
+  const periodos = [];
+  for(let i=11; i>=0; i--){
+    const d = new Date(hoy.getFullYear(), hoy.getMonth()-i, 1);
+    periodos.push(d.getFullYear()+'-'+pad2(d.getMonth()+1));
+  }
+  const totalesPorPeriodo = {};
+  periodos.forEach(p=> totalesPorPeriodo[p] = 0);
+  pagos.forEach(p=>{
+    const per = normalizarPeriodo(p.periodo);
+    if(totalesPorPeriodo.hasOwnProperty(per)){ totalesPorPeriodo[per] += Number(p.valor||0); }
+  });
+
+  const etiquetas = periodos.map(p=>{
+    const [y,m] = p.split('-');
+    return MESES_ABREV[Number(m)-1] + ' ' + y.slice(2);
+  });
+  const valores = periodos.map(p=>totalesPorPeriodo[p]);
+
+  if(graficoRecaudoInstancia){ graficoRecaudoInstancia.destroy(); }
+  graficoRecaudoInstancia = new Chart(canvas.getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: etiquetas,
+      datasets: [{
+        label: 'Recaudado',
+        data: valores,
+        backgroundColor: 'rgba(56,189,248,0.55)',
+        borderColor: 'rgba(56,189,248,1)',
+        borderWidth: 1,
+        borderRadius: 5,
+        maxBarThickness: 42
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display:false },
+        tooltip: { callbacks: { label: (ctx)=> fmtMoney(ctx.parsed.y) } }
+      },
+      scales: {
+        x: { grid:{ display:false }, ticks:{ color:'#8b96bd', font:{family:'Inter', size:11} } },
+        y: {
+          grid:{ color:'rgba(255,255,255,0.06)' },
+          ticks:{ color:'#8b96bd', font:{family:'Inter', size:11}, callback:(v)=> fmtMoney(v) }
+        }
+      }
+    }
+  });
+}
+
 function renderStats(){
   const clientes = getClientes();
   const equipos = getEquipos();
@@ -3745,6 +3939,10 @@ function renderStats(){
   const suspendidosTodos = clientes.filter(c=>c.estado==='suspendido');
   const bloqueadosTodos = clientes.filter(c=>c.estado==='bloqueado');
   const vencidosTodos = activosTodos.filter(c=>estaVencido(c));
+  const porVencerTodos = activosTodos.filter(c=>estaPorVencer(c,3));
+  document.getElementById('statPorVencer').textContent = porVencerTodos.length;
+  document.getElementById('statPorVencerNote').textContent = porVencerTodos.length + ' cliente(s) se vencen en los próximos 3 días';
+  document.getElementById('statPorVencerBadge').textContent = porVencerTodos.length;
 
   // "Recaudado Este Mes" se puede filtrar por vereda y/o por propietario
   // (EDWIN/IVAN/SOCIA) con los selectores de arriba, o mostrar el total
@@ -3905,6 +4103,8 @@ function renderStats(){
   document.getElementById('statSuspendidos').textContent = suspendidos.length;
   document.getElementById('statBloqueados').textContent = bloqueados.length;
   document.getElementById('statVencidos').textContent = vencidos.length;
+
+  renderGraficoRecaudoHistorico();
 
   const tbody = document.getElementById('tablaInicioPagos');
   const empty = document.getElementById('inicioPagosEmpty');
@@ -4618,6 +4818,16 @@ function imprimirRecibo(){
   window.print();
 }
 
+/* Normaliza un número de WhatsApp colombiano a formato internacional (57XXXXXXXXXX). Devuelve '' si no parece válido. */
+function formatearNumeroWhatsapp(valor){
+  if(!valor) return '';
+  let numero = String(valor).replace(/[^0-9]/g,'');
+  if(numero.length===10) numero = '57'+numero;
+  if(numero.startsWith('0')) numero = '57'+numero.slice(1);
+  if(numero.length < 10) return '';
+  return numero;
+}
+
 function enviarReciboWhatsapp(){
   const clienteId = document.getElementById('btnEnviarWA').dataset.clienteId;
   const pagoId = document.getElementById('btnEnviarWA').dataset.pagoId;
@@ -4626,10 +4836,8 @@ function enviarReciboWhatsapp(){
   if(!c || !pago){ showToast('No se pudo preparar el mensaje'); return; }
   if(!c.whatsapp){ showToast('Este cliente no tiene número de WhatsApp registrado'); return; }
 
-  let numero = c.whatsapp.replace(/[^0-9]/g,'');
-  if(numero.length===10) numero = '57'+numero;
-  if(numero.startsWith('0')) numero = '57'+numero.slice(1);
-  if(numero.length < 10){ showToast('El número de WhatsApp de este cliente no parece válido: ' + c.whatsapp); return; }
+  const numero = formatearNumeroWhatsapp(c.whatsapp);
+  if(!numero){ showToast('El número de WhatsApp de este cliente no parece válido: ' + c.whatsapp); return; }
 
   const fecha = new Date(pago.fecha).toLocaleDateString('es-CO');
   const mensaje =
@@ -4692,6 +4900,148 @@ function actualizarEstadoEnvioRecibo(pago){
   } else {
     if(badge){ badge.style.display='none'; }
   }
+}
+
+/* ===================== RECORDATORIOS MASIVOS POR WHATSAPP ===================== */
+const PLANTILLA_RECORDATORIO_DEFECTO =
+`Hola {nombre}, te saluda *MCE Comunicaciones*.
+
+Te recordamos que tu pago del plan {plan} ({valor}) tiene fecha de corte el {corte}. Por favor realiza tu pago a tiempo para evitar la suspensión del servicio.
+
+¡Gracias por confiar en nosotros!`;
+
+let filtroRecordatoriosActual = 'vencidos';
+let colaEnvioRecordatorios = [];
+let envioRecordatoriosEnCurso = false;
+
+function clientesParaFiltroRecordatorios(filtro){
+  const clientes = getClientes().filter(c=>c.estado==='activo' && c.whatsapp);
+  if(filtro==='vencidos') return clientes.filter(c=>estaVencido(c));
+  if(filtro==='porVencer') return clientes.filter(c=>estaPorVencer(c,3));
+  // 'pendientes': todo activo que aún no pagó el periodo actual (vencido, por vencer o no)
+  const pagos = getPagos();
+  const periodoNorm = normalizarPeriodo(periodoActual());
+  const pagadosIds = new Set(pagos.filter(p=>normalizarPeriodo(p.periodo)===periodoNorm).map(p=>p.clienteId));
+  return clientes.filter(c=>!pagadosIds.has(c.id));
+}
+
+function abrirModalRecordatorios(filtroInicial){
+  document.getElementById('recordatorioMensaje').value = PLANTILLA_RECORDATORIO_DEFECTO;
+  document.getElementById('modalRecordatorios').classList.add('active');
+  cambiarFiltroRecordatorios(filtroInicial || 'vencidos');
+}
+
+function cambiarFiltroRecordatorios(filtro){
+  filtroRecordatoriosActual = filtro;
+  document.getElementById('btnFiltroVencidos').className = filtro==='vencidos' ? 'btn btn-primary btn-small' : 'btn btn-outline btn-small';
+  document.getElementById('btnFiltroPorVencer').className = filtro==='porVencer' ? 'btn btn-primary btn-small' : 'btn btn-outline btn-small';
+  document.getElementById('btnFiltroPendientes').className = filtro==='pendientes' ? 'btn btn-primary btn-small' : 'btn btn-outline btn-small';
+  renderListaRecordatorios();
+}
+
+function renderListaRecordatorios(){
+  const lista = clientesParaFiltroRecordatorios(filtroRecordatoriosActual);
+  const tbody = document.getElementById('tablaRecordatorios');
+  const empty = document.getElementById('recordatoriosEmpty');
+  document.getElementById('recordatorioContador').textContent = lista.length + (lista.length===1 ? ' cliente' : ' clientes');
+  if(lista.length===0){
+    tbody.innerHTML = '';
+    empty.style.display = 'block';
+    document.getElementById('chkSeleccionarTodosRecordatorios').checked = false;
+    return;
+  }
+  empty.style.display = 'none';
+  tbody.innerHTML = lista.map(c=>{
+    const dias = diasHastaVencimiento(c);
+    const yaEnviado = yaSeEnvioRecordatorio(c.id);
+    let estadoTxt;
+    if(dias < 0) estadoTxt = '<span class="badge badge-red">Vencido hace ' + Math.abs(dias) + ' día(s)</span>';
+    else if(dias === 0) estadoTxt = '<span class="badge badge-orange">Vence hoy</span>';
+    else estadoTxt = '<span class="badge badge-orange">Vence en ' + dias + ' día(s)</span>';
+    return `
+    <tr>
+      <td><input type="checkbox" class="chkRecordatorioCliente" value="${c.id}" checked></td>
+      <td class="cell-strong">${c.nombre}${yaEnviado ? ' <span class="mono cell-muted" style="font-size:10.5px;">(ya se le envió este mes)</span>' : ''}</td>
+      <td class="cell-muted">${c.vereda||'—'}</td>
+      <td class="mono cell-muted">${mostrarFechaCorte(c)}<br>${estadoTxt}</td>
+      <td><button class="btn btn-outline btn-small" type="button" onclick="enviarRecordatorioIndividual('${c.id}')">Enviar</button></td>
+    </tr>`;
+  }).join('');
+  document.getElementById('chkSeleccionarTodosRecordatorios').checked = true;
+}
+
+function marcarTodosRecordatorios(marcar){
+  document.querySelectorAll('.chkRecordatorioCliente').forEach(chk=> chk.checked = marcar);
+}
+
+/* Reemplaza {nombre}, {plan}, {valor}, {corte} en la plantilla con los datos reales del cliente */
+function construirMensajeRecordatorio(cliente){
+  const plantilla = document.getElementById('recordatorioMensaje').value || PLANTILLA_RECORDATORIO_DEFECTO;
+  return plantilla
+    .replaceAll('{nombre}', cliente.nombre || '')
+    .replaceAll('{plan}', cliente.planNombre || '')
+    .replaceAll('{valor}', fmtMoney(cliente.precio || 0))
+    .replaceAll('{corte}', mostrarFechaCorte(cliente));
+}
+
+/* Abre WhatsApp para un solo cliente con el mensaje ya armado (usado por el botón "Enviar" de cada fila) */
+function enviarRecordatorioIndividual(clienteId){
+  const c = getClientes().find(x=>x.id===clienteId);
+  if(!c){ showToast('No se encontró el cliente'); return; }
+  const numero = formatearNumeroWhatsapp(c.whatsapp);
+  if(!numero){ showToast('El número de WhatsApp de ' + c.nombre + ' no parece válido'); return; }
+  const url = `https://wa.me/${numero}?text=${encodeURIComponent(construirMensajeRecordatorio(c))}`;
+  const ventana = window.open(url, '_blank');
+  if(!ventana || ventana.closed || typeof ventana.closed === 'undefined'){ window.location.href = url; }
+  marcarRecordatorioEnviado(clienteId);
+  logAccion('Recordatorio de pago enviado', c.nombre);
+  renderListaRecordatorios();
+}
+
+/* Envía el recordatorio a todos los clientes marcados en la lista, uno tras otro,
+   abriendo una pestaña de WhatsApp por cada uno con un pequeño intervalo entre
+   cada apertura (así el navegador no las bloquea todas de una). El operador
+   no tiene que buscar cliente por cliente: todo sale de esta sola pantalla. */
+function enviarRecordatoriosSeleccionados(){
+  if(envioRecordatoriosEnCurso){ showToast('Ya se está enviando el lote de recordatorios, espera a que termine'); return; }
+  const idsSeleccionados = [...document.querySelectorAll('.chkRecordatorioCliente:checked')].map(chk=>chk.value);
+  if(idsSeleccionados.length===0){ showToast('Selecciona al menos un cliente'); return; }
+
+  const clientes = getClientes();
+  colaEnvioRecordatorios = idsSeleccionados
+    .map(id=>clientes.find(c=>c.id===id))
+    .filter(c=>c && formatearNumeroWhatsapp(c.whatsapp));
+
+  const sinNumero = idsSeleccionados.length - colaEnvioRecordatorios.length;
+  if(colaEnvioRecordatorios.length===0){ showToast('Ninguno de los seleccionados tiene un número de WhatsApp válido'); return; }
+
+  envioRecordatoriosEnCurso = true;
+  const btn = document.getElementById('btnEnviarRecordatoriosMasivo');
+  const totalOriginal = btn.innerHTML;
+  let enviados = 0;
+
+  showToast('Enviando recordatorios — permite las ventanas emergentes si el navegador te lo pide');
+
+  function procesarSiguiente(){
+    if(colaEnvioRecordatorios.length===0){
+      envioRecordatoriosEnCurso = false;
+      btn.innerHTML = totalOriginal;
+      showToast('Listo: ' + enviados + ' recordatorio(s) abierto(s) en WhatsApp' + (sinNumero>0 ? ' — ' + sinNumero + ' cliente(s) sin número válido se omitieron' : ''));
+      logAccion('Recordatorios masivos enviados', enviados + ' cliente(s) — filtro: ' + filtroRecordatoriosActual);
+      renderListaRecordatorios();
+      return;
+    }
+    const c = colaEnvioRecordatorios.shift();
+    const numero = formatearNumeroWhatsapp(c.whatsapp);
+    const url = `https://wa.me/${numero}?text=${encodeURIComponent(construirMensajeRecordatorio(c))}`;
+    const ventana = window.open(url, '_blank');
+    if(!ventana){ showToast('El navegador bloqueó la ventana de ' + c.nombre + ' — usa el botón "Enviar" individual para ese cliente'); }
+    marcarRecordatorioEnviado(c.id);
+    enviados++;
+    btn.innerHTML = 'Enviando ' + enviados + ' de ' + idsSeleccionados.length + '...';
+    setTimeout(procesarSiguiente, 900);
+  }
+  procesarSiguiente();
 }
 
 /* ===================== MAPA GENERAL ===================== */
