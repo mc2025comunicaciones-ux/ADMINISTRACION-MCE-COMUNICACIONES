@@ -480,115 +480,53 @@
         <p>Controla clientes, pagos, cobertura e instalaciones de MCE Comunicaciones desde un solo lugar.</p>
       </div>
 
+      <!-- Filtro único: controla todas las tarjetas y paneles de Inicio a la vez, en vez de que cada uno tenga el suyo -->
+      <div class="panel" style="padding:14px 18px; margin-bottom:20px; display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+        <div style="display:flex; align-items:center; gap:8px; font-size:11.5px; color:var(--text-muted); font-weight:600; letter-spacing:0.4px; text-transform:uppercase;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg>
+          Filtrar todo el Inicio por
+        </div>
+        <select id="filtroGlobalVereda" onchange="renderStats()" style="font-size:12.5px; padding:7px 12px; border-radius:9px; background:var(--bg-panel); border:1px solid var(--border-soft); color:var(--text-primary);">
+          <option value="" style="background:var(--bg-panel); color:var(--text-primary);">Todas las veredas</option>
+        </select>
+        <select id="filtroGlobalPropietario" onchange="renderStats()" style="font-size:12.5px; padding:7px 12px; border-radius:9px; background:var(--bg-panel); border:1px solid var(--border-soft); color:var(--text-primary);">
+          <option value="" style="background:var(--bg-panel); color:var(--text-primary);">Todos los propietarios</option>
+          <option value="EDWIN" style="background:var(--bg-panel); color:var(--text-primary);">EDWIN</option>
+          <option value="IVAN" style="background:var(--bg-panel); color:var(--text-primary);">IVAN</option>
+          <option value="SOCIA" style="background:var(--bg-panel); color:var(--text-primary);">SOCIA</option>
+        </select>
+      </div>
+
       <div class="grid-cards">
         <div class="stat-card">
-          <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:14px;">
-            <div class="stat-icon icon-green" style="margin-bottom:0;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5.5c0-1.9-2.2-3-5-3s-5 1.4-5 3.3 2.2 2.8 5 3.2 5 1.3 5 3.2S14.8 15.5 12 15.5s-5-1.1-5-3"/></svg></div>
-            <div style="display:flex; flex-direction:column; gap:5px; align-items:flex-end;">
-              <select id="filtroRecaudadoVereda" onchange="renderStats()" style="font-size:11px; padding:4px 8px; border-radius:8px; background:var(--bg-panel); border:1px solid var(--border-soft); color:var(--text-primary); max-width:140px;">
-                <option value="" style="background:var(--bg-panel); color:var(--text-primary);">Todas las veredas</option>
-              </select>
-              <select id="filtroRecaudadoPropietario" onchange="renderStats()" style="font-size:11px; padding:4px 8px; border-radius:8px; background:var(--bg-panel); border:1px solid var(--border-soft); color:var(--text-primary); max-width:140px;">
-                <option value="" style="background:var(--bg-panel); color:var(--text-primary);">Todos</option>
-                <option value="EDWIN" style="background:var(--bg-panel); color:var(--text-primary);">EDWIN</option>
-                <option value="IVAN" style="background:var(--bg-panel); color:var(--text-primary);">IVAN</option>
-                <option value="SOCIA" style="background:var(--bg-panel); color:var(--text-primary);">SOCIA</option>
-              </select>
-            </div>
-          </div>
+          <div class="stat-icon icon-green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5.5c0-1.9-2.2-3-5-3s-5 1.4-5 3.3 2.2 2.8 5 3.2 5 1.3 5 3.2S14.8 15.5 12 15.5s-5-1.1-5-3"/></svg></div>
           <div class="stat-label">Recaudado Este Mes</div>
           <div class="stat-value mono" id="statRecaudado">$0</div>
           <div class="stat-note" id="statRecaudadoNote">0 pagos registrados</div>
         </div>
         <div class="stat-card">
-          <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:14px;">
-            <div class="stat-icon icon-orange" style="margin-bottom:0;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg></div>
-            <div style="display:flex; flex-direction:column; gap:5px; align-items:flex-end;">
-              <select id="filtroPendienteVereda" onchange="renderStats()" style="font-size:11px; padding:4px 8px; border-radius:8px; background:var(--bg-panel); border:1px solid var(--border-soft); color:var(--text-primary); max-width:140px;">
-                <option value="" style="background:var(--bg-panel); color:var(--text-primary);">Todas las veredas</option>
-              </select>
-              <select id="filtroPendientePropietario" onchange="renderStats()" style="font-size:11px; padding:4px 8px; border-radius:8px; background:var(--bg-panel); border:1px solid var(--border-soft); color:var(--text-primary); max-width:140px;">
-                <option value="" style="background:var(--bg-panel); color:var(--text-primary);">Todos</option>
-                <option value="EDWIN" style="background:var(--bg-panel); color:var(--text-primary);">EDWIN</option>
-                <option value="IVAN" style="background:var(--bg-panel); color:var(--text-primary);">IVAN</option>
-                <option value="SOCIA" style="background:var(--bg-panel); color:var(--text-primary);">SOCIA</option>
-              </select>
-            </div>
-          </div>
+          <div class="stat-icon icon-orange"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg></div>
           <div class="stat-label">Pendiente por Cobrar</div>
           <div class="stat-value mono" id="statPendiente">$0</div>
           <div class="stat-note" id="statPendienteNote">0 clientes sin pagar este mes</div>
         </div>
         <div class="stat-card">
-          <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:14px;">
-            <div class="stat-icon icon-blue" style="margin-bottom:0;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.5 3-6 6.5-6s6.5 2.5 6.5 6"/><circle cx="17" cy="8" r="2.6"/><path d="M15.5 14.2c2.8.3 5 2.6 5 5.8"/></svg></div>
-            <select id="filtroTotalClientesPropietario" onchange="renderStats()" style="font-size:11px; padding:4px 8px; border-radius:8px; background:var(--bg-panel); border:1px solid var(--border-soft); color:var(--text-primary); max-width:120px;">
-              <option value="" style="background:var(--bg-panel); color:var(--text-primary);">Todos</option>
-              <option value="EDWIN" style="background:var(--bg-panel); color:var(--text-primary);">EDWIN</option>
-              <option value="IVAN" style="background:var(--bg-panel); color:var(--text-primary);">IVAN</option>
-              <option value="SOCIA" style="background:var(--bg-panel); color:var(--text-primary);">SOCIA</option>
-            </select>
-          </div>
+          <div class="stat-icon icon-blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.5 3-6 6.5-6s6.5 2.5 6.5 6"/><circle cx="17" cy="8" r="2.6"/><path d="M15.5 14.2c2.8.3 5 2.6 5 5.8"/></svg></div>
           <div class="stat-label">Total Clientes</div>
           <div class="stat-value" id="statTotalClientes">0</div>
           <div class="stat-note" id="statTotalClientesNote">Registrados en el sistema</div>
         </div>
         <div class="stat-card">
-          <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:14px;">
-            <div class="stat-icon icon-cyan" style="margin-bottom:0;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/></svg></div>
-            <select id="filtroEquiposPropietario" onchange="renderStats()" style="font-size:11px; padding:4px 8px; border-radius:8px; background:var(--bg-panel); border:1px solid var(--border-soft); color:var(--text-primary); max-width:120px;">
-              <option value="" style="background:var(--bg-panel); color:var(--text-primary);">Todos</option>
-              <option value="EDWIN" style="background:var(--bg-panel); color:var(--text-primary);">EDWIN</option>
-              <option value="IVAN" style="background:var(--bg-panel); color:var(--text-primary);">IVAN</option>
-              <option value="SOCIA" style="background:var(--bg-panel); color:var(--text-primary);">SOCIA</option>
-            </select>
-          </div>
+          <div class="stat-icon icon-cyan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/></svg></div>
           <div class="stat-label">Equipos Instalados</div>
           <div class="stat-value" id="statEquipos">0</div>
           <div class="stat-note" id="statEquiposNote">Routers, antenas y switches</div>
         </div>
         <div class="stat-card">
-          <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:14px;">
-            <div class="stat-icon icon-purple" style="margin-bottom:0;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h16M6 20V10M12 20V4M18 20v-7"/></svg></div>
-            <select id="filtroMegasEstado" onchange="renderStats()" style="font-size:11px; padding:4px 8px; border-radius:8px; background:var(--bg-panel); border:1px solid var(--border-soft); color:var(--text-primary); max-width:120px;">
-              <option value="" style="background:var(--bg-panel); color:var(--text-primary);">Todos</option>
-              <option value="activo" style="background:var(--bg-panel); color:var(--text-primary);">Solo activos</option>
-            </select>
-          </div>
+          <div class="stat-icon icon-purple"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h16M6 20V10M12 20V4M18 20v-7"/></svg></div>
           <div class="stat-label">Megas Vendidas (Total)</div>
           <div class="stat-value mono" id="statMegasTotal">0 Mbps</div>
           <div class="stat-note" id="statMegasTotalNote">0 veredas con clientes</div>
-        </div>
-        <div class="stat-card">
-          <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:14px;">
-            <div class="stat-icon icon-orange" style="margin-bottom:0;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v5l3 2"/><circle cx="12" cy="13" r="8"/><path d="M9 1h6M12 1v3"/></svg></div>
-            <button class="btn btn-whatsapp btn-small" type="button" onclick="abrirModalRecordatorios('porVencer')" style="padding:6px 12px; font-size:11.5px;">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
-              Recordar
-            </button>
-          </div>
-          <div class="stat-label">Por Vencer (3 días)</div>
-          <div class="stat-value mono" id="statPorVencer">0</div>
-          <div class="stat-note" id="statPorVencerNote">Clientes activos que se vencen pronto</div>
-        </div>
-      </div>
-
-      <div class="panel" id="panelMegasVereda">
-        <div class="panel-head">
-          <div>
-            <h2>Megas y Recaudo por Vereda</h2>
-            <div class="panel-sub" id="megasVeredaSub">Cuánto ancho de banda tienes contratado y cuánto has recaudado este mes en cada vereda o zona</div>
-          </div>
-        </div>
-        <div style="overflow-x:auto;">
-          <table>
-            <thead><tr><th>Vereda / Zona</th><th>Clientes</th><th>Megas Vendidas</th><th>Recaudado Este Mes</th><th>Pendiente por Cobrar</th><th style="min-width:140px;">% Megas del Total</th></tr></thead>
-            <tbody id="tablaMegasVereda"></tbody>
-          </table>
-          <div class="empty-state" id="megasVeredaEmpty" style="display:none;">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 20h16M6 20V10M12 20V4M18 20v-7"/></svg>
-            <p>Aún no has registrado clientes con vereda para agrupar.</p>
-          </div>
         </div>
       </div>
 
@@ -598,18 +536,10 @@
             <h2>Estado de Clientes</h2>
             <div class="panel-sub">Distribución actual de tu cartera</div>
           </div>
-          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-            <button class="btn btn-whatsapp btn-small" type="button" onclick="abrirModalRecordatorios('vencidos')">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
-              Enviar Recordatorios
-            </button>
-            <select id="filtroEstadoClientesPropietario" onchange="renderStats()" style="font-size:12px; padding:6px 10px; border-radius:8px; background:var(--bg-panel); border:1px solid var(--border-soft); color:var(--text-primary);">
-              <option value="" style="background:var(--bg-panel); color:var(--text-primary);">Todos</option>
-              <option value="EDWIN" style="background:var(--bg-panel); color:var(--text-primary);">EDWIN</option>
-              <option value="IVAN" style="background:var(--bg-panel); color:var(--text-primary);">IVAN</option>
-              <option value="SOCIA" style="background:var(--bg-panel); color:var(--text-primary);">SOCIA</option>
-            </select>
-          </div>
+          <button class="btn btn-whatsapp btn-small" type="button" onclick="abrirModalRecordatorios('vencidos')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+            Enviar Recordatorios
+          </button>
         </div>
         <div class="grid-cards" style="margin-bottom:0;">
           <div class="stat-card" style="padding:16px 20px;">
@@ -645,6 +575,32 @@
         </div>
       </div>
 
+      <div class="panel" id="panelMegasVereda">
+        <div class="panel-head">
+          <div>
+            <h2>Megas y Recaudo por Vereda</h2>
+            <div class="panel-sub" id="megasVeredaSub">Cuánto ancho de banda tienes contratado y cuánto has recaudado este mes en cada vereda o zona</div>
+          </div>
+          <button class="btn btn-outline btn-small" type="button" id="btnToggleMegasVereda" onclick="toggleMegasVereda()">Ver detalle</button>
+        </div>
+        <div id="megasVeredaDetalle" style="display:none; overflow-x:auto;">
+          <div style="display:flex; justify-content:flex-end; margin-bottom:10px;">
+            <select id="filtroMegasEstado" onchange="renderStats()" style="font-size:11.5px; padding:5px 10px; border-radius:8px; background:var(--bg-panel); border:1px solid var(--border-soft); color:var(--text-primary);">
+              <option value="" style="background:var(--bg-panel); color:var(--text-primary);">Todos</option>
+              <option value="activo" style="background:var(--bg-panel); color:var(--text-primary);">Solo activos</option>
+            </select>
+          </div>
+          <table>
+            <thead><tr><th>Vereda / Zona</th><th>Clientes</th><th>Megas Vendidas</th><th>Recaudado Este Mes</th><th>Pendiente por Cobrar</th><th style="min-width:140px;">% Megas del Total</th></tr></thead>
+            <tbody id="tablaMegasVereda"></tbody>
+          </table>
+          <div class="empty-state" id="megasVeredaEmpty" style="display:none;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 20h16M6 20V10M12 20V4M18 20v-7"/></svg>
+            <p>Aún no has registrado clientes con vereda para agrupar.</p>
+          </div>
+        </div>
+      </div>
+
       <div class="panel" id="panelGraficoRecaudo">
         <div class="panel-head">
           <div>
@@ -665,19 +621,20 @@
         <div class="panel-head">
           <div>
             <h2>Estado de Pagos — Mes Actual</h2>
-            <div class="panel-sub" id="pagosInicioSub">Quién ya pagó y quién falta, con su fecha de corte</div>
+            <div class="panel-sub" id="pagosInicioSub">Quién ya pagó y quién falta — el detalle completo, cliente por cliente, está en "Pagos"</div>
           </div>
-          <button class="btn btn-outline btn-small" type="button" onclick="irAPagos()">Ir a Pagos</button>
+          <button class="btn btn-primary btn-small" type="button" onclick="irAPagos()">Ir a Pagos</button>
         </div>
-        <div style="overflow-x:auto;">
-          <table>
-            <thead><tr><th>Cliente</th><th>Vereda</th><th>Corte</th><th>Estado</th><th></th></tr></thead>
-            <tbody id="tablaInicioPagos"></tbody>
-          </table>
-          <div class="empty-state" id="inicioPagosEmpty" style="display:none;">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.5 3-6 6.5-6s6.5 2.5 6.5 6"/></svg>
-            <p>Aún no has registrado clientes.</p>
+        <div id="resumenPagosInicioConDatos" style="display:none;">
+          <div style="display:flex; align-items:baseline; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
+            <span class="stat-value mono" id="resumenPagosInicioTexto" style="font-size:24px;">0 / 0</span>
+            <span class="stat-note" id="resumenPagosInicioNota" style="margin-top:0;">clientes activos ya pagaron este mes</span>
           </div>
+          <div class="vereda-bar-track"><div class="vereda-bar-fill" id="resumenPagosInicioBarra" style="width:0%;"></div></div>
+        </div>
+        <div class="empty-state" id="inicioPagosEmpty" style="display:none;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.5 3-6 6.5-6s6.5 2.5 6.5 6"/></svg>
+          <p>Aún no has registrado clientes.</p>
         </div>
       </div>
     </section>
@@ -4241,83 +4198,54 @@ function renderStats(){
   const mapaClientesPorId = {};
   clientes.forEach(c=> mapaClientesPorId[c.id] = c);
 
-  const activosTodos = clientes.filter(c=>c.estado==='activo');
-  const suspendidosTodos = clientes.filter(c=>c.estado==='suspendido');
-  const bloqueadosTodos = clientes.filter(c=>c.estado==='bloqueado');
+  // ---- Filtro único de Inicio (vereda + propietario): controla TODO lo de
+  // abajo a la vez, en vez de que cada tarjeta tenga su propio selector. ----
+  const filtroVeredaSel = document.getElementById('filtroGlobalVereda');
+  if(filtroVeredaSel){
+    const veredaActual = filtroVeredaSel.value;
+    const veredasParaSelect = [...new Set(clientes.map(c=>(c.vereda||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'));
+    filtroVeredaSel.innerHTML = '<option value="">Todas las veredas</option>' +
+      veredasParaSelect.map(v=>`<option value="${v.replace(/"/g,'&quot;')}">${v}</option>`).join('');
+    filtroVeredaSel.value = veredasParaSelect.includes(veredaActual) ? veredaActual : '';
+  }
+  const veredaFiltro = filtroVeredaSel ? filtroVeredaSel.value : '';
+  const filtroPropietarioSel = document.getElementById('filtroGlobalPropietario');
+  const propietarioFiltro = filtroPropietarioSel ? filtroPropietarioSel.value : '';
+  const coincideFiltro = (c)=> (!propietarioFiltro || c.propietario===propietarioFiltro) && (!veredaFiltro || (c.vereda||'').trim()===veredaFiltro);
+  const hayFiltroActivo = !!(propietarioFiltro || veredaFiltro);
+  const notaFiltro = hayFiltroActivo
+    ? ' — ' + [veredaFiltro, propietarioFiltro].filter(Boolean).join(' · ')
+    : '';
+
+  const activosTodos = clientes.filter(c=>c.estado==='activo' && coincideFiltro(c));
+  const suspendidosTodos = clientes.filter(c=>c.estado==='suspendido' && coincideFiltro(c));
+  const bloqueadosTodos = clientes.filter(c=>c.estado==='bloqueado' && coincideFiltro(c));
   const vencidosTodos = activosTodos.filter(c=>estaVencido(c));
   const porVencerTodos = activosTodos.filter(c=>estaPorVencer(c,3));
-  document.getElementById('statPorVencer').textContent = porVencerTodos.length;
-  document.getElementById('statPorVencerNote').textContent = porVencerTodos.length + ' cliente(s) se vencen en los próximos 3 días';
   document.getElementById('statPorVencerBadge').textContent = porVencerTodos.length;
 
-  // "Recaudado Este Mes" se puede filtrar por vereda y/o por propietario
-  // (EDWIN/IVAN/SOCIA) con los selectores de arriba, o mostrar el total
-  // combinado si se dejan en "Todas las veredas" / "Todos".
-  const filtroVeredaRecaudadoSel = document.getElementById('filtroRecaudadoVereda');
-  if(filtroVeredaRecaudadoSel){
-    const veredaRecaudadoActual = filtroVeredaRecaudadoSel.value;
-    const veredasParaSelect = [...new Set(clientes.map(c=>(c.vereda||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'));
-    filtroVeredaRecaudadoSel.innerHTML = '<option value="">Todas las veredas</option>' +
-      veredasParaSelect.map(v=>`<option value="${v.replace(/"/g,'&quot;')}">${v}</option>`).join('');
-    filtroVeredaRecaudadoSel.value = veredasParaSelect.includes(veredaRecaudadoActual) ? veredaRecaudadoActual : '';
-  }
-  const veredaFiltroRecaudado = filtroVeredaRecaudadoSel ? filtroVeredaRecaudadoSel.value : '';
-  const filtroSel = document.getElementById('filtroRecaudadoPropietario');
-  const propietarioFiltro = filtroSel ? filtroSel.value : '';
   const pagosMesFiltrados = pagosMes.filter(p=>{
     const c = mapaClientesPorId[p.clienteId];
-    if(propietarioFiltro && (!c || c.propietario !== propietarioFiltro)) return false;
-    if(veredaFiltroRecaudado && (!c || (c.vereda||'').trim() !== veredaFiltroRecaudado)) return false;
-    return true;
+    return c && coincideFiltro(c);
   });
-
   const recaudado = pagosMesFiltrados.reduce((s,p)=>s+Number(p.valor||0),0);
   const clientesPagadosIds = new Set(pagosMes.map(p=>p.clienteId));
   const pendientesTodos = activosTodos.filter(c=>!clientesPagadosIds.has(c.id));
+  const pendienteValor = pendientesTodos.reduce((s,c)=>s+Number(c.precio||0),0);
 
-  // "Pendiente por Cobrar" también se puede filtrar por vereda y por propietario
-  const filtroVeredaPendienteSel = document.getElementById('filtroPendienteVereda');
-  if(filtroVeredaPendienteSel){
-    const veredaPendienteActual = filtroVeredaPendienteSel.value;
-    const veredasParaSelectPendiente = [...new Set(clientes.map(c=>(c.vereda||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'));
-    filtroVeredaPendienteSel.innerHTML = '<option value="">Todas las veredas</option>' +
-      veredasParaSelectPendiente.map(v=>`<option value="${v.replace(/"/g,'&quot;')}">${v}</option>`).join('');
-    filtroVeredaPendienteSel.value = veredasParaSelectPendiente.includes(veredaPendienteActual) ? veredaPendienteActual : '';
-  }
-  const veredaFiltroPendiente = filtroVeredaPendienteSel ? filtroVeredaPendienteSel.value : '';
-  const filtroPendienteSel = document.getElementById('filtroPendientePropietario');
-  const propietarioFiltroPendiente = filtroPendienteSel ? filtroPendienteSel.value : '';
-  const pendientes = pendientesTodos.filter(c=>{
-    if(propietarioFiltroPendiente && c.propietario !== propietarioFiltroPendiente) return false;
-    if(veredaFiltroPendiente && (c.vereda||'').trim() !== veredaFiltroPendiente) return false;
-    return true;
+  const clientesFiltrados = clientes.filter(coincideFiltro);
+
+  const equiposFiltrados = equipos.filter(e=>{
+    const c = e.clienteId ? mapaClientesPorId[e.clienteId] : null;
+    return c ? coincideFiltro(c) : !hayFiltroActivo;
   });
-  const pendienteValor = pendientes.reduce((s,c)=>s+Number(c.precio||0),0);
 
-  // "Total Clientes" también se puede filtrar por propietario
-  const filtroTotalSel = document.getElementById('filtroTotalClientesPropietario');
-  const propietarioFiltroTotal = filtroTotalSel ? filtroTotalSel.value : '';
-  const clientesFiltrados = propietarioFiltroTotal
-    ? clientes.filter(c=>c.propietario === propietarioFiltroTotal)
-    : clientes;
-
-  // "Equipos Instalados" se filtra por el propietario del cliente al que está asignado el equipo
-  const filtroEquiposSel = document.getElementById('filtroEquiposPropietario');
-  const propietarioFiltroEquipos = filtroEquiposSel ? filtroEquiposSel.value : '';
-  const equiposFiltrados = propietarioFiltroEquipos
-    ? equipos.filter(e=>{ const c = e.clienteId ? mapaClientesPorId[e.clienteId] : null; return c && c.propietario === propietarioFiltroEquipos; })
-    : equipos;
-
-  // "Megas Vendidas por Vereda" — agrupa dinámicamente por el texto que cada
-  // cliente tenga en su campo Vereda, así que apenas se escribe una vereda
-  // nueva al crear/editar un cliente, esta aparece sola en la lista sin
-  // necesidad de tocar el código. Se puede filtrar para contar solo activos
-  // o todos los clientes (incluye suspendidos/bloqueados) con el selector.
-  // También se calcula, para cada vereda, lo recaudado este mes (pagos ya
-  // registrados en el periodo actual de los clientes de esa vereda).
+  // "Megas Vendidas por Vereda" — respeta el filtro único de arriba, y además
+  // tiene su propio sub-filtro de "solo activos" dentro del detalle (que solo
+  // se calcula si el panel está abierto, para no gastar trabajo de más).
   const filtroMegasSel = document.getElementById('filtroMegasEstado');
   const filtroMegasValor = filtroMegasSel ? filtroMegasSel.value : '';
-  const clientesParaMegas = filtroMegasValor ? clientes.filter(c=>c.estado===filtroMegasValor) : clientes;
+  const clientesParaMegas = clientes.filter(c=> coincideFiltro(c) && (!filtroMegasValor || c.estado===filtroMegasValor));
   const megasPorVereda = {};
   clientesParaMegas.forEach(c=>{
     const nombreVereda = (c.vereda || '').trim() || 'Sin vereda';
@@ -4327,7 +4255,7 @@ function renderStats(){
   });
   pagosMes.forEach(p=>{
     const c = mapaClientesPorId[p.clienteId];
-    if(!c) return;
+    if(!c || !coincideFiltro(c)) return;
     if(filtroMegasValor && c.estado !== filtroMegasValor) return;
     const nombreVereda = (c.vereda || '').trim() || 'Sin vereda';
     if(!megasPorVereda[nombreVereda]) megasPorVereda[nombreVereda] = { clientes:0, megas:0, recaudado:0, pendiente:0 };
@@ -4345,9 +4273,7 @@ function renderStats(){
   const megasTotalGeneral = filasMegasVereda.reduce((s,f)=>s+f.megas,0);
 
   document.getElementById('statMegasTotal').textContent = megasTotalGeneral.toLocaleString('es-CO') + ' Mbps';
-  document.getElementById('statMegasTotalNote').textContent = filtroMegasValor
-    ? filasMegasVereda.length + ' vereda(s) con clientes activos'
-    : filasMegasVereda.length + ' vereda(s) con clientes';
+  document.getElementById('statMegasTotalNote').textContent = filasMegasVereda.length + ' vereda(s) con clientes' + notaFiltro;
 
   const tbodyMegasVereda = document.getElementById('tablaMegasVereda');
   const emptyMegasVereda = document.getElementById('megasVeredaEmpty');
@@ -4385,52 +4311,53 @@ function renderStats(){
     listaVeredasEl.innerHTML = veredasUnicas.map(v=>`<option value="${v.replace(/"/g,'&quot;')}"></option>`).join('');
   }
 
-  // "Estado de Clientes" (Activos/Suspendidos/Bloqueados/Vencidos) se filtra en conjunto
-  const filtroEstadoSel = document.getElementById('filtroEstadoClientesPropietario');
-  const propietarioFiltroEstado = filtroEstadoSel ? filtroEstadoSel.value : '';
-  const activos = propietarioFiltroEstado ? activosTodos.filter(c=>c.propietario===propietarioFiltroEstado) : activosTodos;
-  const suspendidos = propietarioFiltroEstado ? suspendidosTodos.filter(c=>c.propietario===propietarioFiltroEstado) : suspendidosTodos;
-  const bloqueados = propietarioFiltroEstado ? bloqueadosTodos.filter(c=>c.propietario===propietarioFiltroEstado) : bloqueadosTodos;
-  const vencidos = propietarioFiltroEstado ? vencidosTodos.filter(c=>c.propietario===propietarioFiltroEstado) : vencidosTodos;
-
   document.getElementById('statRecaudado').textContent = fmtMoney(recaudado);
-  document.getElementById('statRecaudadoNote').textContent = pagosMesFiltrados.length + ' pago(s) registrados'
-    + (veredaFiltroRecaudado ? ' — ' + veredaFiltroRecaudado : '')
-    + (propietarioFiltro ? ' — clientes de ' + propietarioFiltro : (veredaFiltroRecaudado ? '' : ' (todos)'));
+  document.getElementById('statRecaudadoNote').textContent = pagosMesFiltrados.length + ' pago(s) registrados' + notaFiltro;
   document.getElementById('statPendiente').textContent = fmtMoney(pendienteValor);
-  document.getElementById('statPendienteNote').textContent = pendientes.length + ' cliente(s) sin pagar este mes'
-    + (veredaFiltroPendiente ? ' — ' + veredaFiltroPendiente : '')
-    + (propietarioFiltroPendiente ? ' — clientes de ' + propietarioFiltroPendiente : '');
+  document.getElementById('statPendienteNote').textContent = pendientesTodos.length + ' cliente(s) sin pagar este mes' + notaFiltro;
   document.getElementById('statTotalClientes').textContent = clientesFiltrados.length;
-  document.getElementById('statTotalClientesNote').textContent = propietarioFiltroTotal ? 'Clientes de ' + propietarioFiltroTotal : 'Registrados en el sistema';
+  document.getElementById('statTotalClientesNote').textContent = hayFiltroActivo ? 'Registrados' + notaFiltro : 'Registrados en el sistema';
   document.getElementById('statEquipos').textContent = equiposFiltrados.length;
-  document.getElementById('statEquiposNote').textContent = propietarioFiltroEquipos ? 'Clientes de ' + propietarioFiltroEquipos : 'Routers, antenas y switches';
-  document.getElementById('statActivos').textContent = activos.length;
-  document.getElementById('statSuspendidos').textContent = suspendidos.length;
-  document.getElementById('statBloqueados').textContent = bloqueados.length;
-  document.getElementById('statVencidos').textContent = vencidos.length;
+  document.getElementById('statEquiposNote').textContent = hayFiltroActivo ? 'Routers, antenas y switches' + notaFiltro : 'Routers, antenas y switches';
+  document.getElementById('statActivos').textContent = activosTodos.length;
+  document.getElementById('statSuspendidos').textContent = suspendidosTodos.length;
+  document.getElementById('statBloqueados').textContent = bloqueadosTodos.length;
+  document.getElementById('statVencidos').textContent = vencidosTodos.length;
 
   renderGraficoRecaudoHistorico();
 
-  const tbody = document.getElementById('tablaInicioPagos');
+  // Resumen de "Estado de Pagos — Mes Actual": ya no se lista cliente por
+  // cliente aquí (para eso está la sección "Pagos", con buscador); en
+  // Inicio solo se muestra el avance del mes de un vistazo.
+  const conDatos = document.getElementById('resumenPagosInicioConDatos');
   const empty = document.getElementById('inicioPagosEmpty');
-  document.getElementById('pagosInicioSub').textContent = 'Periodo actual: ' + periodoTexto(periodo);
-  if(clientes.length===0){ tbody.innerHTML=''; empty.style.display='block'; return; }
-  empty.style.display='none';
-  const ordenado = [...clientes].sort((a,b)=> (clientesPagadosIds.has(a.id)?1:0) - (clientesPagadosIds.has(b.id)?1:0));
-  const puedeRegistrar = esSuperAdmin() || permisosActuales().pagos.registrar;
-  tbody.innerHTML = ordenado.map(c=>{
-    const pagado = clientesPagadosIds.has(c.id);
-    return `
-    <tr>
-      <td class="cell-strong">${c.nombre}</td>
-      <td class="cell-muted">${c.vereda||'—'}</td>
-      <td class="mono cell-muted">${mostrarFechaCorte(c)}</td>
-      <td>${pagado ? '<span class="badge badge-green">● Pagado</span>' : (estaVencido(c) ? '<span class="badge badge-red">● Vencido</span>' : '<span class="badge badge-orange">● Pendiente</span>')}</td>
-      <td>${(pagado || !puedeRegistrar) ? '' : '<button class="btn btn-green btn-small" type="button" onclick="abrirModalPago(\''+c.id+'\')">Registrar Pago</button>'}</td>
-    </tr>`;
-  }).join('');
+  document.getElementById('pagosInicioSub').textContent = 'Periodo actual: ' + periodoTexto(periodo) + ' — el detalle completo, cliente por cliente, está en "Pagos"';
+  if(activosTodos.length===0){
+    conDatos.style.display = 'none';
+    empty.style.display = 'block';
+  } else {
+    empty.style.display = 'none';
+    conDatos.style.display = 'block';
+    const pagadosCount = activosTodos.filter(c=>clientesPagadosIds.has(c.id)).length;
+    const pct = Math.round((pagadosCount / activosTodos.length) * 100);
+    document.getElementById('resumenPagosInicioTexto').textContent = pagadosCount + ' / ' + activosTodos.length;
+    document.getElementById('resumenPagosInicioNota').textContent = 'clientes activos ya pagaron este mes (' + pct + '%)' + notaFiltro;
+    document.getElementById('resumenPagosInicioBarra').style.width = pct + '%';
+  }
 }
+
+/* Abre/cierra el detalle de "Megas y Recaudo por Vereda" — colapsado por
+   defecto porque es una tabla secundaria, no algo que haga falta ver de
+   entrada cada vez que se abre Inicio. */
+function toggleMegasVereda(){
+  const detalle = document.getElementById('megasVeredaDetalle');
+  const btn = document.getElementById('btnToggleMegasVereda');
+  const abrir = detalle.style.display === 'none';
+  detalle.style.display = abrir ? 'block' : 'none';
+  btn.textContent = abrir ? 'Ocultar detalle' : 'Ver detalle';
+  if(abrir) renderStats();
+}
+
 
 /* ===================== CLIENTES ===================== */
 function renderClientesTable(){
