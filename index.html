@@ -412,6 +412,10 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2.5" y="5" width="19" height="14" rx="2.2"/><path d="M2.5 10h19"/><path d="M6 15h4"/></svg>
       Pagos
     </button>
+    <button type="button" class="navlink" data-view="avisos">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+      Avisos
+    </button>
     <button type="button" class="navlink" data-view="mapa">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 20 3 17.5V4L9 6.5m0 13.5 6-2.5m-6 2.5V6.5m6 11 6 2.5V6.5L15 4m0 13.5V4M9 6.5 15 4"/></svg>
       Mapa Clientes
@@ -714,7 +718,31 @@
       </div>
     </section>
 
-    <!-- ===== VISTA INFO MBPS (Reuso y saturación de nodos) ===== -->
+    <!-- ===== VISTA AVISOS Y MANTENIMIENTOS ===== -->
+    <section class="view" id="view-avisos">
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Avisos y Mantenimientos</h2>
+            <div class="panel-sub">Publica avisos que tus clientes verán en la página pública (mantenimientos, fallas masivas, información general)</div>
+          </div>
+          <button class="btn btn-primary" type="button" onclick="openAvisoModal()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>
+            Nuevo Aviso
+          </button>
+        </div>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead><tr><th>Estado</th><th>Tipo</th><th>Título</th><th>Zona / Vereda</th><th>Vigencia</th><th></th></tr></thead>
+            <tbody id="tablaAvisos"></tbody>
+          </table>
+          <div class="empty-state" id="avisosEmpty" style="display:none;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+            <p>No has publicado avisos todavía. Crea el primero con "Nuevo Aviso".</p>
+          </div>
+        </div>
+      </div>
+    </section>
     <section class="view" id="view-infomegas">
       <div class="hero-banner" style="padding:26px 30px; margin-bottom:24px;">
         <div class="hero-eyebrow"><span class="status-dot"></span> Planeación de capacidad</div>
@@ -1096,7 +1124,7 @@
           <button class="btn btn-outline" type="button" onclick="probarConexionSync()">Probar Conexión</button>
           <button class="btn btn-outline" type="button" onclick="diagnosticarPagos()">Diagnóstico: ¿Por qué no llegan los pagos?</button>
           <button class="btn btn-outline" type="button" onclick="diagnosticarUsuarios()">Diagnóstico: ¿Por qué no puede entrar el otro usuario?</button>
-          <button class="btn btn-outline" type="button" onclick="sincronizarTodosClientes()">Sincronizar Todo Ahora (Clientes, Planes, Pagos, Equipos, Usuarios, Logs, Egresos)</button>
+          <button class="btn btn-outline" type="button" onclick="sincronizarTodosClientes()">Sincronizar Todo Ahora (Clientes, Planes, Pagos, Equipos, Usuarios, Logs, Egresos, Avisos)</button>
           <button class="btn btn-green" type="button" onclick="importarDatosDesdeNube()">Importar / Actualizar Datos en Este Dispositivo</button>
         </div>
         <div class="coord-display" id="syncStatus" style="margin-top:16px; display:none;"></div>
@@ -1349,6 +1377,7 @@
             <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" id="pMapa"> Mapa Clientes</label>
             <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" id="pLogs"> Logs</label>
             <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" id="pEgresos"> Egresos (proveedores de megas, compras)</label>
+            <label style="display:flex; align-items:center; gap:6px;"><input type="checkbox" id="pAvisos"> Avisos y Mantenimientos</label>
           </div>
         </div>
         <div class="form-field full">
@@ -1392,6 +1421,57 @@
       <div class="modal-actions">
         <button type="button" class="btn btn-outline" onclick="closeModal('modalPlan')">Cancelar</button>
         <button type="submit" class="btn btn-primary">Guardar Plan</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ================= MODAL AVISO / MANTENIMIENTO ================= -->
+<div class="modal-overlay" id="modalAviso">
+  <div class="modal">
+    <div class="modal-title" id="avisoModalTitle">Nuevo Aviso</div>
+    <div class="modal-sub">Este aviso se mostrará en la página pública mientras esté activo y dentro de su vigencia</div>
+    <form id="formAviso">
+      <input type="hidden" id="avisoId">
+      <div class="form-grid">
+        <div class="form-field full">
+          <label>Título</label>
+          <input type="text" id="avTitulo" required placeholder="Ej: Mantenimiento programado en Vereda El Cedro">
+        </div>
+        <div class="form-field">
+          <label>Tipo de aviso</label>
+          <select id="avTipo" required>
+            <option value="mantenimiento">🔧 Mantenimiento programado</option>
+            <option value="falla">⚠️ Falla / interrupción del servicio</option>
+            <option value="info">ℹ️ Información general</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label>Zona / Vereda afectada (opcional)</label>
+          <input type="text" id="avZona" placeholder="Ej: El Cedro, Saladoblanco">
+        </div>
+        <div class="form-field">
+          <label>Vigente desde</label>
+          <input type="date" id="avFechaInicio" required>
+        </div>
+        <div class="form-field">
+          <label>Vigente hasta (opcional)</label>
+          <input type="date" id="avFechaFin">
+        </div>
+        <div class="form-field full">
+          <label>Mensaje para tus clientes</label>
+          <textarea id="avMensaje" rows="4" required placeholder="Ej: El día lunes 25 estaremos realizando mantenimiento preventivo en la zona. El servicio podría presentar interrupciones entre 8am y 12pm."></textarea>
+        </div>
+        <div class="form-field full">
+          <label style="display:flex; align-items:center; gap:8px; margin:0;">
+            <input type="checkbox" id="avActivo" checked style="width:auto;">
+            Aviso activo (visible para los clientes)
+          </label>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" onclick="closeModal('modalAviso')">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Guardar Aviso</button>
       </div>
     </form>
   </div>
@@ -1818,26 +1898,26 @@ const PERMISOS_TOTAL = {
   clientes:{ver:true, crear:true, editar:true, eliminar:true},
   instalaciones:{ver:true, crear:true, editar:true, eliminar:true},
   pagos:{ver:true, registrar:true},
-  planes:true, mapa:true, logs:true, egresos:true,
+  planes:true, mapa:true, logs:true, egresos:true, avisos:true,
   usuarios:true, configuracion:true, descargarCodigo:true
 };
 const PRESETS_USUARIO = {
   tecnico: {
     clientes:{ver:true, crear:true, editar:false, eliminar:false},
     instalaciones:{ver:true, crear:true, editar:false, eliminar:false},
-    pagos:{ver:false, registrar:false}, planes:false, mapa:false, logs:false, egresos:false,
+    pagos:{ver:false, registrar:false}, planes:false, mapa:false, logs:false, egresos:false, avisos:false,
     usuarios:false, configuracion:false, descargarCodigo:false
   },
   cobrador: {
     clientes:{ver:true, crear:false, editar:false, eliminar:false},
     instalaciones:{ver:false, crear:false, editar:false, eliminar:false},
-    pagos:{ver:true, registrar:true}, planes:false, mapa:true, logs:false, egresos:false,
+    pagos:{ver:true, registrar:true}, planes:false, mapa:true, logs:false, egresos:false, avisos:false,
     usuarios:false, configuracion:false, descargarCodigo:false
   },
   socio: {
     clientes:{ver:true, crear:true, editar:true, eliminar:true},
     instalaciones:{ver:true, crear:true, editar:true, eliminar:true},
-    pagos:{ver:true, registrar:true}, planes:true, mapa:true, logs:true, egresos:true,
+    pagos:{ver:true, registrar:true}, planes:true, mapa:true, logs:true, egresos:true, avisos:true,
     usuarios:false, configuracion:true, descargarCodigo:false
   },
   total: PERMISOS_TOTAL
@@ -1862,6 +1942,7 @@ function normalizarPermisos(permisos){
     mapa: !!p.mapa,
     logs: !!p.logs,
     egresos: !!p.egresos,
+    avisos: !!p.avisos,
     usuarios: !!p.usuarios,
     configuracion: !!p.configuracion,
     descargarCodigo: !!p.descargarCodigo
@@ -1956,6 +2037,7 @@ function aplicarPermisos(){
   toggleNav('instalaciones', !!p.instalaciones.ver);
   toggleNav('logs', !!p.logs);
   toggleNav('egresos', admin || p.egresos);
+  toggleNav('avisos', admin || p.avisos);
   toggleNav('balance', admin || p.egresos);
   toggleNav('usuarios', admin || p.usuarios);
   toggleNav('configuracion', admin || p.configuracion);
@@ -2012,6 +2094,7 @@ function aplicarPresetUsuario(preset){
   document.getElementById('pMapa').checked = !!base.mapa;
   document.getElementById('pLogs').checked = !!base.logs;
   document.getElementById('pEgresos').checked = !!base.egresos;
+  document.getElementById('pAvisos').checked = !!base.avisos;
   document.getElementById('pUsuarios').checked = !!base.usuarios;
   document.getElementById('pConfiguracion').checked = !!base.configuracion;
   document.getElementById('pDescargarCodigo').checked = !!base.descargarCodigo;
@@ -2039,6 +2122,7 @@ function leerPermisosFormUsuario(){
     mapa: document.getElementById('pMapa').checked,
     logs: document.getElementById('pLogs').checked,
     egresos: document.getElementById('pEgresos').checked,
+    avisos: document.getElementById('pAvisos').checked,
     usuarios: document.getElementById('pUsuarios').checked,
     configuracion: document.getElementById('pConfiguracion').checked,
     descargarCodigo: document.getElementById('pDescargarCodigo').checked,
@@ -2067,6 +2151,7 @@ function resumenPermisos(permisos){
   if(p.mapa) partes.push('Mapa');
   if(p.logs) partes.push('Logs');
   if(p.egresos) partes.push('Egresos');
+  if(p.avisos) partes.push('Avisos');
   if(p.usuarios) partes.push('Usuarios');
   if(p.configuracion) partes.push('Configuración');
   if(p.descargarCodigo) partes.push('Descargar código');
@@ -2105,7 +2190,7 @@ function openUsuarioModal(id){
   document.getElementById('usuarioId').value = '';
   document.getElementById('usuarioModalTitle').textContent = 'Nuevo Usuario';
   aplicarPresetUsuario('');
-  ['pClienteVer','pClienteCrear','pClienteEditar','pClienteEliminar','pInstVer','pInstCrear','pInstEditar','pInstEliminar','pPagosVer','pPagosRegistrar','pPlanes','pMapa','pLogs','pEgresos','pUsuarios','pConfiguracion','pDescargarCodigo'].forEach(id=>{
+  ['pClienteVer','pClienteCrear','pClienteEditar','pClienteEliminar','pInstVer','pInstCrear','pInstEditar','pInstEliminar','pPagosVer','pPagosRegistrar','pPlanes','pMapa','pLogs','pEgresos','pAvisos','pUsuarios','pConfiguracion','pDescargarCodigo'].forEach(id=>{
     document.getElementById(id).checked = false;
   });
   if(id){
@@ -2131,6 +2216,7 @@ function openUsuarioModal(id){
       document.getElementById('pMapa').checked = perm.mapa;
       document.getElementById('pLogs').checked = perm.logs;
       document.getElementById('pEgresos').checked = perm.egresos;
+      document.getElementById('pAvisos').checked = perm.avisos;
       document.getElementById('pUsuarios').checked = perm.usuarios;
       document.getElementById('pConfiguracion').checked = perm.configuracion;
       document.getElementById('pDescargarCodigo').checked = perm.descargarCodigo;
@@ -2804,6 +2890,19 @@ async function importarDatosDesdeNube(){
     });
     setEgresos(egresosLocales);
 
+    // ---- Avisos y Mantenimientos: se fusionan por id ----
+    const avisosLocales = getAvisos();
+    const idsAvisosLocales = new Set(avisosLocales.map(av=>av.id));
+    (remoto.avisos||[]).forEach(av=>{
+      if(!av.id || idsAvisosLocales.has(av.id)) return;
+      avisosLocales.push({
+        id: av.id, titulo: av.titulo || '', mensaje: av.mensaje || '', tipo: av.tipo || 'info',
+        zona: av.zona || '', fechaInicio: av.fechaInicio || '', fechaFin: av.fechaFin || '',
+        activo: av.activo === true || av.activo === 'SI' || av.activo === 'TRUE'
+      });
+    });
+    setAvisos(avisosLocales);
+
     // Refresca toda la interfaz con los datos ya combinados
     renderStats(); renderClientesTable(); renderPlanesTable();
     renderPagosTable(document.getElementById('buscarPago').value);
@@ -2813,6 +2912,7 @@ async function importarDatosDesdeNube(){
     renderEgresosProveedoresTable();
     renderEgresosComprasTable();
     renderResumenEgresos();
+    renderAvisosTable();
 
     // Si el mapa de clientes ya estaba abierto/inicializado, se refresca
     // para que las coordenadas recién importadas aparezcan de inmediato.
@@ -2820,7 +2920,7 @@ async function importarDatosDesdeNube(){
       try { initBigMap(); } catch(e) {}
     }
 
-    let mensajeFinal = `✔ Importado: ${(remoto.clientes||[]).length} clientes, ${(remoto.planes||[]).length} planes, ${(remoto.pagos||[]).length} pagos, ${(remoto.equipos||[]).length} equipos, ${(remoto.usuarios||[]).length} usuarios, ${(remoto.logs||[]).length} registros de actividad revisados, ${(remoto.egresos||[]).length} egresos revisados.`;
+    let mensajeFinal = `✔ Importado: ${(remoto.clientes||[]).length} clientes, ${(remoto.planes||[]).length} planes, ${(remoto.pagos||[]).length} pagos, ${(remoto.equipos||[]).length} equipos, ${(remoto.usuarios||[]).length} usuarios, ${(remoto.logs||[]).length} registros de actividad revisados, ${(remoto.egresos||[]).length} egresos revisados, ${(remoto.avisos||[]).length} avisos revisados.`;
     if(idsClientesEliminadosPorAusencia.size > 0){
       mensajeFinal += ` 🗑 ${idsClientesEliminadosPorAusencia.size} cliente(s) que fueron eliminados desde otro dispositivo también se quitaron aquí.`;
     }
@@ -2829,7 +2929,7 @@ async function importarDatosDesdeNube(){
     }
     mostrarEstadoSync(mensajeFinal, usuariosConPermisosDudosos === 0);
     showToast('Datos importados desde la nube');
-    logAccion('Importación desde la nube', 'Clientes/Planes/Pagos/Equipos/Usuarios/Logs/Egresos sincronizados a este dispositivo' + (idsClientesEliminadosPorAusencia.size > 0 ? ` (${idsClientesEliminadosPorAusencia.size} cliente(s) eliminados por sincronización)` : ''));
+    logAccion('Importación desde la nube', 'Clientes/Planes/Pagos/Equipos/Usuarios/Logs/Egresos/Avisos sincronizados a este dispositivo' + (idsClientesEliminadosPorAusencia.size > 0 ? ` (${idsClientesEliminadosPorAusencia.size} cliente(s) eliminados por sincronización)` : ''));
   }catch(err){
     mostrarEstadoSync('No se pudo importar: ' + err.message, false);
   }
@@ -2854,7 +2954,8 @@ async function sincronizarTodosClientes(){
   const usuarios = getUsuarios();
   const logs = getLogs();
   const egresos = getEgresos();
-  const total = clientes.length + planes.length + pagos.length + equipos.length + usuarios.length + logs.length + egresos.length;
+  const avisos = getAvisos();
+  const total = clientes.length + planes.length + pagos.length + equipos.length + usuarios.length + logs.length + egresos.length + avisos.length;
   if(total===0){ showToast('No hay datos para sincronizar'); return; }
 
   let hecho = 0, ok = 0, fail = 0;
@@ -2897,10 +2998,15 @@ async function sincronizarTodosClientes(){
     if(r && r.ok) ok++; else fail++;
     hecho++; mostrarEstadoSync(`Sincronizando ${hecho} / ${total}...`, true);
   }
+  for(let i=0; i<avisos.length; i++){
+    const r = await syncAvisoToSheet(avisos[i]);
+    if(r && r.ok) ok++; else fail++;
+    hecho++; mostrarEstadoSync(`Sincronizando ${hecho} / ${total}...`, true);
+  }
 
   mostrarEstadoSync(`Listo: ${ok} registro(s) sincronizados` + (fail? `, ${fail} con error` : ''), fail===0);
   showToast('Sincronización masiva completada');
-  logAccion('Sincronización masiva', `${ok} registros sincronizados (clientes, planes, pagos, equipos, usuarios, logs, egresos), ${fail} con error`);
+  logAccion('Sincronización masiva', `${ok} registros sincronizados (clientes, planes, pagos, equipos, usuarios, logs, egresos, avisos), ${fail} con error`);
 }
 
 /* ===================== COPIA DE SEGURIDAD LOCAL ===================== */
@@ -2919,6 +3025,7 @@ const CLAVES_BACKUP_MAP = {
   nodos: 'mce_nodos',
   historialNodos: 'mce_historial_nodos',
   egresos: 'mce_egresos',
+  avisos: 'mce_avisos',
   reciboCounter: 'mce_recibo_counter',
   syncUrl: 'mce_sync_url',
   syncAuto: 'mce_sync_auto',
@@ -3258,6 +3365,27 @@ function doPost(e) {
       return respuesta({ ok: true, eliminado: false });
     }
 
+    if (payload.action === 'upsertAviso') {
+      var hojaAvisos = obtenerHoja(ss, 'Avisos', ['id','titulo','mensaje','tipo','zona','fechaInicio','fechaFin','activo']);
+      var dav = payload.data;
+      var filaAv = buscarFilaPorId(hojaAvisos, dav.id);
+      var valoresAv = [
+        dav.id || '', dav.titulo || '', dav.mensaje || '', dav.tipo || 'info',
+        dav.zona || '', dav.fechaInicio || '', dav.fechaFin || '', dav.activo || 'NO'
+      ];
+      if (filaAv > 0) { hojaAvisos.getRange(filaAv, 1, 1, valoresAv.length).setValues([valoresAv]); }
+      else { hojaAvisos.appendRow(valoresAv); }
+      return respuesta({ ok: true });
+    }
+
+    if (payload.action === 'deleteAviso') {
+      var hojaAvisosDel = ss.getSheetByName('Avisos');
+      if (!hojaAvisosDel) { return respuesta({ ok: true, eliminado: false }); }
+      var filaAvisoDel = buscarFilaPorId(hojaAvisosDel, payload.id);
+      if (filaAvisoDel > 0) { hojaAvisosDel.deleteRow(filaAvisoDel); return respuesta({ ok: true, eliminado: true }); }
+      return respuesta({ ok: true, eliminado: false });
+    }
+
     if (payload.action === 'listarTodo') {
       var datosCompletos = sheet.getDataRange().getValues();
       var clientesList = [];
@@ -3387,7 +3515,25 @@ function doPost(e) {
         }
       }
 
-      return respuesta({ ok: true, data: { clientes: clientesList, planes: planesList, pagos: pagosList, equipos: equiposList, usuarios: usuariosList, logs: logsList, egresos: egresosList } });
+      var avisosList = [];
+      var hojaAvisosLeer = ss.getSheetByName('Avisos');
+      if (hojaAvisosLeer) {
+        var datosAvisosLeer = hojaAvisosLeer.getDataRange().getValues();
+        for (var s = 1; s < datosAvisosLeer.length; s++) {
+          var fav = datosAvisosLeer[s];
+          if (!fav[0]) continue;
+          var fInicioCelda = fav[5], fFinCelda = fav[6];
+          avisosList.push({
+            id: fav[0], titulo: fav[1] || '', mensaje: fav[2] || '', tipo: fav[3] || 'info',
+            zona: fav[4] || '',
+            fechaInicio: (fInicioCelda instanceof Date) ? Utilities.formatDate(fInicioCelda, Session.getScriptTimeZone(), 'yyyy-MM-dd') : (fInicioCelda || ''),
+            fechaFin: (fFinCelda instanceof Date) ? Utilities.formatDate(fFinCelda, Session.getScriptTimeZone(), 'yyyy-MM-dd') : (fFinCelda || ''),
+            activo: fav[7] || 'NO'
+          });
+        }
+      }
+
+      return respuesta({ ok: true, data: { clientes: clientesList, planes: planesList, pagos: pagosList, equipos: equiposList, usuarios: usuariosList, logs: logsList, egresos: egresosList, avisos: avisosList } });
     }
 
     if (payload.action === 'diagnosticoPagos') {
@@ -4213,6 +4359,7 @@ const titles = {
   mapa:['Mapa de Clientes','Visualiza y reubica a tus clientes geográficamente'],
   instalaciones:['Instalaciones','Inventario de equipos de red en campo'],
   egresos:['Egresos','Proveedores de megas y compras de equipos/materiales'],
+  avisos:['Avisos y Mantenimientos','Publica avisos que verán tus clientes en la página pública'],
   balance:['Balance / Utilidad','Ingresos vs egresos y utilidad neta por propietario'],
   logs:['Logs','Historial de actividad del sistema'],
   usuarios:['Usuarios y Permisos','Crea usuarios adicionales y define su acceso'],
@@ -4220,6 +4367,7 @@ const titles = {
 };
 function irAVista(v){
   if(v==='egresos' && !(esSuperAdmin() || permisosActuales().egresos)){ showToast('No tienes permiso para ver Egresos'); return; }
+  if(v==='avisos' && !(esSuperAdmin() || permisosActuales().avisos)){ showToast('No tienes permiso para ver Avisos'); return; }
   if(v==='balance' && !(esSuperAdmin() || permisosActuales().egresos)){ showToast('No tienes permiso para ver el Balance'); return; }
   if(v==='usuarios' && !(esSuperAdmin() || permisosActuales().usuarios)){ showToast('No tienes permiso para gestionar usuarios'); return; }
   if(v==='configuracion' && !(esSuperAdmin() || permisosActuales().configuracion)){ showToast('No tienes permiso para ver Configuración/Sincronización'); return; }
@@ -4238,6 +4386,7 @@ function irAVista(v){
   if(v==='pagos'){ renderPagosTable(document.getElementById('buscarPago').value); }
   if(v==='instalaciones'){ renderEquiposTable(); }
   if(v==='egresos'){ renderEgresosProveedoresTable(); renderEgresosComprasTable(); renderResumenEgresos(); }
+  if(v==='avisos'){ renderAvisosTable(); }
   if(v==='balance'){ renderBalance(); }
   if(v==='logs'){ renderLogsTable(); }
   if(v==='usuarios'){ renderUsuariosTable(); }
@@ -6585,6 +6734,154 @@ function descargarReportePDFMensual(){
     console.error(err);
     showToast('No se pudo generar el reporte PDF');
   }
+}
+
+/* ===================== AVISOS Y MANTENIMIENTOS =====================
+   Avisos que se publican para que los clientes los vean en la página
+   pública (banner de "Avisos y Mantenimientos"). Se guardan localmente
+   y se sincronizan a la pestaña "Avisos" de la Hoja de Google, de donde
+   la página pública los lee directamente (sin pasar por Apps Script). */
+const DB_KEY_AVISOS = 'mce_avisos';
+function getAvisos(){ try{ return JSON.parse(localStorage.getItem(DB_KEY_AVISOS) || '[]'); }catch(e){ return []; } }
+function setAvisos(list){ localStorage.setItem(DB_KEY_AVISOS, JSON.stringify(list)); }
+
+function etiquetaTipoAviso(tipo){
+  if(tipo==='mantenimiento') return { texto:'🔧 Mantenimiento', clase:'badge-orange' };
+  if(tipo==='falla') return { texto:'⚠️ Falla', clase:'badge-red' };
+  return { texto:'ℹ️ Información', clase:'badge-blue' };
+}
+
+/* Un aviso está "vigente" si está activo y la fecha de hoy cae dentro del
+   rango [fechaInicio, fechaFin]. Si no hay fechaFin, se considera vigente
+   indefinidamente hasta que se desactive o se borre. */
+function avisoEstaVigente(a){
+  if(!a.activo) return false;
+  const hoy = hoyISO();
+  if(a.fechaInicio && hoy < a.fechaInicio) return false;
+  if(a.fechaFin && hoy > a.fechaFin) return false;
+  return true;
+}
+
+function renderAvisosTable(){
+  const avisos = getAvisos().slice().sort((a,b)=> (b.fechaInicio||'').localeCompare(a.fechaInicio||''));
+  const tbody = document.getElementById('tablaAvisos');
+  const empty = document.getElementById('avisosEmpty');
+  if(!tbody) return;
+  if(avisos.length===0){ tbody.innerHTML=''; if(empty) empty.style.display='block'; return; }
+  if(empty) empty.style.display='none';
+  tbody.innerHTML = avisos.map(a=>{
+    const tipo = etiquetaTipoAviso(a.tipo);
+    const vigente = avisoEstaVigente(a);
+    const vigencia = a.fechaFin ? `${a.fechaInicio} → ${a.fechaFin}` : `Desde ${a.fechaInicio}`;
+    return `
+    <tr>
+      <td>${vigente ? '<span class="badge badge-green">🟢 Visible ahora</span>' : '<span class="badge">⚪ No visible</span>'}</td>
+      <td><span class="badge ${tipo.clase}">${tipo.texto}</span></td>
+      <td class="cell-strong">${a.titulo}</td>
+      <td class="cell-muted">${a.zona || '—'}</td>
+      <td class="mono cell-muted">${vigencia}</td>
+      <td>
+        <div class="row-actions">
+          <button class="icon-btn" type="button" onclick="openAvisoModal('${a.id}')" title="Editar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+          </button>
+          <button class="icon-btn danger" type="button" onclick="deleteAviso('${a.id}')" title="Eliminar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0-1 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 6"/></svg>
+          </button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function openAvisoModal(id){
+  document.getElementById('formAviso').reset();
+  document.getElementById('avisoId').value = '';
+  document.getElementById('avisoModalTitle').textContent = 'Nuevo Aviso';
+  document.getElementById('avFechaInicio').value = hoyISO();
+  document.getElementById('avActivo').checked = true;
+  if(id){
+    const a = getAvisos().find(x=>x.id===id);
+    if(a){
+      document.getElementById('avisoModalTitle').textContent = 'Editar Aviso';
+      document.getElementById('avisoId').value = a.id;
+      document.getElementById('avTitulo').value = a.titulo || '';
+      document.getElementById('avTipo').value = a.tipo || 'mantenimiento';
+      document.getElementById('avZona').value = a.zona || '';
+      document.getElementById('avFechaInicio').value = a.fechaInicio || hoyISO();
+      document.getElementById('avFechaFin').value = a.fechaFin || '';
+      document.getElementById('avMensaje').value = a.mensaje || '';
+      document.getElementById('avActivo').checked = !!a.activo;
+    }
+  }
+  document.getElementById('modalAviso').classList.add('active');
+}
+
+document.getElementById('formAviso').addEventListener('submit', function(ev){
+  ev.preventDefault();
+  const id = document.getElementById('avisoId').value || 'av_'+Date.now();
+  const titulo = document.getElementById('avTitulo').value.trim();
+  const mensaje = document.getElementById('avMensaje').value.trim();
+  const fechaInicio = document.getElementById('avFechaInicio').value;
+  if(!titulo || !mensaje || !fechaInicio){ showToast('Completa todos los campos requeridos'); return; }
+  const aviso = {
+    id,
+    titulo, mensaje,
+    tipo: document.getElementById('avTipo').value,
+    zona: document.getElementById('avZona').value.trim(),
+    fechaInicio,
+    fechaFin: document.getElementById('avFechaFin').value || '',
+    activo: document.getElementById('avActivo').checked
+  };
+  const avisos = getAvisos();
+  const idx = avisos.findIndex(x=>x.id===id);
+  const esNuevo = idx < 0;
+  if(idx>=0) avisos[idx] = aviso; else avisos.push(aviso);
+  setAvisos(avisos);
+  renderAvisosTable();
+  closeModal('modalAviso');
+  showToast('Aviso guardado correctamente');
+  logAccion(esNuevo ? 'Aviso creado' : 'Aviso editado', titulo);
+  if(getSyncUrl() && getSyncAuto()){ syncAvisoToSheet(aviso); }
+});
+
+function deleteAviso(id){
+  if(!confirm('¿Eliminar este aviso?')) return;
+  const a = getAvisos().find(x=>x.id===id);
+  setAvisos(getAvisos().filter(x=>x.id!==id));
+  renderAvisosTable();
+  showToast('Aviso eliminado');
+  logAccion('Aviso eliminado', a ? a.titulo : id);
+  if(getSyncUrl() && getSyncAuto()){
+    eliminarAvisoDeSheet(id).then(r=>{
+      if(!r || !r.ok){ showToast('El aviso se borró aquí, pero no se pudo borrar de la Hoja (revisa Sincronización)'); }
+    });
+  }
+}
+
+/* Envía (crea o actualiza) un aviso en la Hoja de Google, pestaña "Avisos" */
+async function syncAvisoToSheet(aviso){
+  const url = getSyncUrl();
+  if(!url) return { ok:false, skip:true };
+  const payload = { action:'upsertAviso', data:{
+    id: aviso.id, titulo: aviso.titulo, mensaje: aviso.mensaje, tipo: aviso.tipo,
+    zona: aviso.zona || '', fechaInicio: aviso.fechaInicio, fechaFin: aviso.fechaFin || '',
+    activo: aviso.activo ? 'SI' : 'NO'
+  }};
+  try{
+    const res = await fetch(url, { method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' }, body: JSON.stringify(payload) });
+    return await res.json().catch(()=>({ok:true}));
+  }catch(err){ return { ok:false, error: err.message }; }
+}
+
+/* Borra un aviso de la Hoja de Google */
+async function eliminarAvisoDeSheet(avisoId){
+  const url = getSyncUrl();
+  if(!url) return { ok:false, skip:true };
+  try{
+    const res = await fetch(url, { method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' }, body: JSON.stringify({ action:'deleteAviso', id: avisoId }) });
+    return await res.json().catch(()=>({ok:true}));
+  }catch(err){ return { ok:false, error: err.message }; }
 }
 
 /* ===================== INIT ===================== */
