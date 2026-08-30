@@ -2334,9 +2334,13 @@ document.getElementById('formUsuario').addEventListener('submit', function(e){
 
 /* ===================== SINCRONIZACIÓN CON GOOGLE SHEETS (página pública de clientes) ===================== */
 const DB_KEY_SYNC_URL = 'mce_sync_url';
+// URL por defecto del Web App de Google Apps Script: así, en cualquier dispositivo
+// nuevo, la sincronización con la Hoja de Google queda lista sin tener que pegarla
+// a mano en Configuración. Si el usuario guarda una URL distinta ahí, esa tiene prioridad.
+const SYNC_URL_DEFAULT = 'https://script.google.com/macros/s/AKfycbxk9CddjxqbcDIUtaBdWcYBznUTcxmcFbNzDiLHnyVihUlV9Ak_-7iJW0cxtg8y6OvP/exec';
 const DB_KEY_SYNC_AUTO = 'mce_sync_auto';
 
-function getSyncUrl(){ return localStorage.getItem(DB_KEY_SYNC_URL) || ''; }
+function getSyncUrl(){ return localStorage.getItem(DB_KEY_SYNC_URL) || SYNC_URL_DEFAULT; }
 function getSyncAuto(){ return localStorage.getItem(DB_KEY_SYNC_AUTO) !== 'false'; }
 
 function cargarConfigSyncUI(){
