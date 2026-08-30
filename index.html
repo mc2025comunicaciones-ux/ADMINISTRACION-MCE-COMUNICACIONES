@@ -2001,7 +2001,7 @@ function normalizarPermisos(permisos){
 function permisosActuales(){ return normalizarPermisos(getCurrentUser().permisos); }
 
 function getUsuarios(){ try{ return JSON.parse(localStorage.getItem(DB_KEY_USUARIOS) || '[]'); }catch(e){ return []; } }
-function setUsuarios(list){ localStorage.setItem(DB_KEY_USUARIOS, JSON.stringify(list)); }
+function setUsuarios(list){ localStorage.setItem(DB_KEY_USUARIOS, JSON.stringify(list)); fbEnviar('usuarios', list); }
 
 function getCurrentUser(){
   try{
@@ -3785,7 +3785,7 @@ const DB_KEY_PAGOS = 'mce_pagos';
 const DB_KEY_RECIBO_COUNTER = 'mce_recibo_counter';
 const DB_KEY_RECORDATORIOS = 'mce_recordatorios';
 function getRecordatorios(){ try{ return JSON.parse(localStorage.getItem(DB_KEY_RECORDATORIOS) || '[]'); }catch(e){ return []; } }
-function setRecordatorios(list){ localStorage.setItem(DB_KEY_RECORDATORIOS, JSON.stringify(list)); }
+function setRecordatorios(list){ localStorage.setItem(DB_KEY_RECORDATORIOS, JSON.stringify(list)); fbEnviar('recordatorios', list); }
 /* Registra que a un cliente ya se le envió el recordatorio de este periodo, para no marcarlo dos veces por error */
 function marcarRecordatorioEnviado(clienteId){
   const lista = getRecordatorios();
@@ -3947,7 +3947,7 @@ document.getElementById('formPlan').addEventListener('submit', function(e){
    sincroniza todavía con la Hoja de Google, a diferencia de clientes/planes/pagos). */
 const DB_KEY_NODOS = 'mce_nodos';
 function getNodos(){ try{ return JSON.parse(localStorage.getItem(DB_KEY_NODOS) || '[]'); }catch(e){ return []; } }
-function setNodos(list){ localStorage.setItem(DB_KEY_NODOS, JSON.stringify(list)); }
+function setNodos(list){ localStorage.setItem(DB_KEY_NODOS, JSON.stringify(list)); fbEnviar('nodos', list); }
 
 /* ---- Historial de saturación por nodo ----
    Cada vez que se abre el panel (o se entra a Info Mbps) por primera vez en
@@ -3958,7 +3958,7 @@ function setNodos(list){ localStorage.setItem(DB_KEY_NODOS, JSON.stringify(list)
    tocar ampliar el enlace. */
 const DB_KEY_HISTORIAL_NODOS = 'mce_historial_nodos';
 function getHistorialNodos(){ try{ return JSON.parse(localStorage.getItem(DB_KEY_HISTORIAL_NODOS) || '[]'); }catch(e){ return []; } }
-function setHistorialNodos(list){ localStorage.setItem(DB_KEY_HISTORIAL_NODOS, JSON.stringify(list)); }
+function setHistorialNodos(list){ localStorage.setItem(DB_KEY_HISTORIAL_NODOS, JSON.stringify(list)); fbEnviar('historialNodos', list); }
 
 /* Convierte el texto "Pedregal, Cerro" en un array normalizado ['Pedregal','Cerro'] */
 function veredasDeNodo(nodo){
@@ -4212,7 +4212,7 @@ const DB_KEY_LOGS = 'mce_logs';
 const LOGS_MAX = 300; // sube el límite porque ahora el historial combina la actividad de todos los dispositivos
 
 function getLogs(){ try{ return JSON.parse(localStorage.getItem(DB_KEY_LOGS) || '[]'); }catch(e){ return []; } }
-function setLogs(list){ localStorage.setItem(DB_KEY_LOGS, JSON.stringify(list)); }
+function setLogs(list){ localStorage.setItem(DB_KEY_LOGS, JSON.stringify(list)); fbEnviar('logs', list); }
 function logAccion(accion, detalle){
   let usuarioActual = 'Sistema';
   try{ const u = getCurrentUser(); usuarioActual = (u && (u.nombre || u.usuario)) || 'Sistema'; }catch(e){}
@@ -4264,8 +4264,19 @@ function setPagos(list){ localStorage.setItem(DB_KEY_PAGOS, JSON.stringify(list)
 function nextReciboNumero(){
   let n = Number(localStorage.getItem(DB_KEY_RECIBO_COUNTER) || '0') + 1;
   localStorage.setItem(DB_KEY_RECIBO_COUNTER, String(n));
+  _fbUltimoEnvio['reciboCounter'] = String(n);
+  fbDB.ref('reciboCounter').set(n).catch(function(err){ console.warn('Error enviando contador de recibos a Firebase:', err); });
   return String(n).padStart(4,'0');
 }
+// Mantiene el contador de recibos igualado entre todos los dispositivos: si otro
+// dispositivo ya emitió un número más alto, este se pone al día para no repetir números.
+fbDB.ref('reciboCounter').on('value', function(snap){
+  const remoto = Number(snap.val() || 0);
+  if(!remoto) return;
+  if(_fbUltimoEnvio['reciboCounter'] === String(remoto)) return;
+  const local = Number(localStorage.getItem(DB_KEY_RECIBO_COUNTER) || '0');
+  if(remoto > local) localStorage.setItem(DB_KEY_RECIBO_COUNTER, String(remoto));
+});
 
 /* ===================== ESTADO DE MAPAS ===================== */
 let miniMapInstance = null, miniMarker = null, selectedCoords = null;
@@ -6139,7 +6150,7 @@ function usarValorEscaneado(){
    directamente en Excel (.xlsx) desde esta misma vista. */
 const DB_KEY_EGRESOS = 'mce_egresos';
 function getEgresos(){ try{ return JSON.parse(localStorage.getItem(DB_KEY_EGRESOS) || '[]'); }catch(e){ return []; } }
-function setEgresos(list){ localStorage.setItem(DB_KEY_EGRESOS, JSON.stringify(list)); }
+function setEgresos(list){ localStorage.setItem(DB_KEY_EGRESOS, JSON.stringify(list)); fbEnviar('egresos', list); }
 function hoyISO(){ return new Date().toISOString().slice(0,10); }
 
 function totalEgreso(e){
@@ -6793,7 +6804,7 @@ function descargarReportePDFMensual(){
    la página pública los lee directamente (sin pasar por Apps Script). */
 const DB_KEY_AVISOS = 'mce_avisos';
 function getAvisos(){ try{ return JSON.parse(localStorage.getItem(DB_KEY_AVISOS) || '[]'); }catch(e){ return []; } }
-function setAvisos(list){ localStorage.setItem(DB_KEY_AVISOS, JSON.stringify(list)); }
+function setAvisos(list){ localStorage.setItem(DB_KEY_AVISOS, JSON.stringify(list)); fbEnviar('avisos', list); }
 
 function etiquetaTipoAviso(tipo){
   if(tipo==='mantenimiento') return { texto:'🔧 Mantenimiento', clase:'badge-orange' };
@@ -6963,6 +6974,13 @@ fbSincronizar('clientes', DB_KEY_CLIENTES, ['renderClientesTable','renderStats']
 fbSincronizar('planes', DB_KEY_PLANES, ['renderPlanesTable']);
 fbSincronizar('pagos', DB_KEY_PAGOS, ['renderPagosTable','renderStats']);
 fbSincronizar('equipos', DB_KEY_EQUIPOS, ['renderEquiposTable']);
+fbSincronizar('usuarios', DB_KEY_USUARIOS, ['renderUsuariosTable']);
+fbSincronizar('recordatorios', DB_KEY_RECORDATORIOS, ['renderListaRecordatorios']);
+fbSincronizar('nodos', DB_KEY_NODOS, ['renderNodosTable']);
+fbSincronizar('historialNodos', DB_KEY_HISTORIAL_NODOS, []);
+fbSincronizar('logs', DB_KEY_LOGS, ['renderLogsTable']);
+fbSincronizar('egresos', DB_KEY_EGRESOS, ['renderResumenEgresos','renderEgresosProveedoresTable','renderEgresosComprasTable']);
+fbSincronizar('avisos', DB_KEY_AVISOS, ['renderAvisosTable']);
 
 /* Al abrir la página, si ya hay una URL de sincronización guardada en este
    dispositivo, se importa automáticamente lo último de la Hoja de Google
