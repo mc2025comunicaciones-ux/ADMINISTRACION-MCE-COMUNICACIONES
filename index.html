@@ -1562,6 +1562,11 @@
         <div class="form-field full" id="pIpResumen" style="display:none;">
           <div class="coord-display"></div>
         </div>
+        <div class="form-field full" id="pIpChipsWrap" style="display:none;">
+          <label>Marca las IPs que NO quieres ofrecer a clientes (antenas, gateway, router, etc.)</label>
+          <div style="font-size:11px; color:var(--text-faint); margin-bottom:8px;">Haz clic en una IP para reservarla — quedará fuera del selector de clientes pero seguirá contando en el pool. Las que ya tiene un cliente asignado no se pueden reservar (aparecen bloqueadas).</div>
+          <div id="pIpChips" style="display:flex; flex-wrap:wrap; gap:6px; max-height:220px; overflow-y:auto; padding:10px; background:var(--bg-panel); border:1px solid var(--border-soft); border-radius:10px;"></div>
+        </div>
       </div>
       <div class="modal-actions">
         <button type="button" class="btn btn-outline" onclick="closeModal('modalPoolIp')">Cancelar</button>
@@ -4217,13 +4222,14 @@ function renderPoolsIpTable(){
   const asignadas = ipsAsignadas();
   tbody.innerHTML = pools.map(p=>{
     const total = (p.ips||[]).length;
-    const disponibles = (p.ips||[]).filter(ip=>!asignadas.includes(ip));
+    const excluidas = p.excluidas || [];
+    const disponibles = (p.ips||[]).filter(ip=>!asignadas.includes(ip) && !excluidas.includes(ip));
     return `
     <tr>
       <td class="cell-strong">${p.nombre}</td>
       <td class="mono cell-muted" style="white-space:pre-line;">${(p.rango||'').replace(/</g,'&lt;')}</td>
       <td class="mono">${total}</td>
-      <td class="mono cell-muted">${total - disponibles.length}</td>
+      <td class="mono cell-muted">${(p.ips||[]).filter(ip=>asignadas.includes(ip)).length}${excluidas.length ? ' <span style="color:var(--text-faint);">+ '+excluidas.length+' reservada'+(excluidas.length===1?'':'s')+'</span>' : ''}</td>
       <td class="mono" style="color:${disponibles.length>0?'var(--success)':'var(--warning)'};">${disponibles.length}</td>
       <td>
         <div class="row-actions">
@@ -4238,11 +4244,50 @@ function renderPoolsIpTable(){
     </tr>`;
   }).join('');
 }
+/* Conjunto de IPs marcadas como "reservadas" (no ofrecer a clientes) mientras
+   se edita el pool en el modal. Se reconstruye cada vez que se abre el modal
+   o se cambia el texto del rango. */
+let poolIpExcluidasEdit = new Set();
+function renderPoolIpChips(){
+  const wrap = document.getElementById('pIpChipsWrap');
+  const cont = document.getElementById('pIpChips');
+  const texto = document.getElementById('pIpRango').value;
+  const lista = ipTextoALista(texto);
+  if(!lista.length){ wrap.style.display = 'none'; cont.innerHTML=''; return; }
+  // Ya no tiene sentido conservar como "reservada" una IP que el admin quitó
+  // del rango al editar el texto.
+  poolIpExcluidasEdit = new Set(Array.from(poolIpExcluidasEdit).filter(ip=>lista.includes(ip)));
+  const asignadas = ipsAsignadas();
+  wrap.style.display = 'block';
+  cont.innerHTML = lista.map(ip=>{
+    const enUso = asignadas.includes(ip);
+    const reservada = poolIpExcluidasEdit.has(ip);
+    let estilo, titulo;
+    if(enUso){
+      estilo = 'background:var(--bg-card); color:var(--text-faint); border:1px solid var(--border-soft); cursor:not-allowed; text-decoration:line-through;';
+      titulo = 'Ya asignada a un cliente — no se puede reservar';
+    } else if(reservada){
+      estilo = 'background:rgba(245,166,35,0.15); color:#f5a623; border:1px solid rgba(245,166,35,0.4); cursor:pointer;';
+      titulo = 'Reservada — clic para volver a ofrecerla a clientes';
+    } else {
+      estilo = 'background:var(--bg-panel); color:var(--text-primary); border:1px solid var(--border-soft); cursor:pointer;';
+      titulo = 'Disponible para clientes — clic para reservarla';
+    }
+    return `<span class="mono" data-ip="${ip}" title="${titulo}" onclick="${enUso?'':'togglePoolIpExcluida(\''+ip+'\')'}"
+      style="display:inline-block; padding:4px 9px; border-radius:8px; font-size:12px; ${estilo}">${ip}</span>`;
+  }).join('');
+}
+function togglePoolIpExcluida(ip){
+  if(poolIpExcluidasEdit.has(ip)) poolIpExcluidasEdit.delete(ip); else poolIpExcluidasEdit.add(ip);
+  renderPoolIpChips();
+}
 function openPoolIpModal(id){
   document.getElementById('formPoolIp').reset();
   document.getElementById('pIpId').value = '';
   document.getElementById('poolIpModalTitle').textContent = 'Nuevo Pool de IP';
   document.getElementById('pIpResumen').style.display = 'none';
+  document.getElementById('pIpChipsWrap').style.display = 'none';
+  poolIpExcluidasEdit = new Set();
   if(id){
     const p = getPoolsIp().find(x=>x.id===id);
     if(p){
@@ -4250,9 +4295,11 @@ function openPoolIpModal(id){
       document.getElementById('pIpId').value = p.id;
       document.getElementById('pIpNombre').value = p.nombre;
       document.getElementById('pIpRango').value = p.rango;
+      poolIpExcluidasEdit = new Set(p.excluidas || []);
     }
   }
   document.getElementById('modalPoolIp').classList.add('active');
+  setTimeout(renderPoolIpChips, 0);
 }
 function editPoolIp(id){ openPoolIpModal(id); }
 function deletePoolIp(id){
@@ -4266,11 +4313,12 @@ function deletePoolIp(id){
 document.getElementById('pIpRango').addEventListener('input', function(){
   const lista = ipTextoALista(this.value);
   const resumen = document.getElementById('pIpResumen');
-  if(!this.value.trim()){ resumen.style.display = 'none'; return; }
+  if(!this.value.trim()){ resumen.style.display = 'none'; document.getElementById('pIpChipsWrap').style.display='none'; return; }
   resumen.style.display = 'block';
   resumen.querySelector('.coord-display').textContent = lista.length
     ? `${lista.length} IP${lista.length===1?'':'s'} detectada${lista.length===1?'':'s'} (ej: ${lista.slice(0,3).join(', ')}${lista.length>3?'...':''})`
     : 'No se detectó ninguna IP válida con ese texto — revisa el formato';
+  renderPoolIpChips();
 });
 document.getElementById('formPoolIp').addEventListener('submit', function(e){
   e.preventDefault();
@@ -4279,7 +4327,8 @@ document.getElementById('formPoolIp').addEventListener('submit', function(e){
   const rango = document.getElementById('pIpRango').value.trim();
   const ips = ipTextoALista(rango);
   if(!ips.length){ showToast('No se detectó ninguna IP válida — revisa el rango o la lista'); return; }
-  const pool = { id, nombre, rango, ips };
+  const excluidas = Array.from(poolIpExcluidasEdit).filter(ip=>ips.includes(ip));
+  const pool = { id, nombre, rango, ips, excluidas };
   const pools = getPoolsIp();
   const idx = pools.findIndex(p=>p.id===id);
   const esNuevo = idx < 0;
@@ -4288,8 +4337,8 @@ document.getElementById('formPoolIp').addEventListener('submit', function(e){
   renderPoolsIpTable();
   renderIpSelectInCliente(document.getElementById('cIp') ? document.getElementById('cIp').value : null);
   closeModal('modalPoolIp');
-  showToast('Pool de IP guardado correctamente (' + ips.length + ' IPs)');
-  logAccion(esNuevo ? 'Pool de IP creado' : 'Pool de IP editado', nombre + ' — ' + ips.length + ' IPs');
+  showToast('Pool de IP guardado correctamente (' + ips.length + ' IPs, ' + excluidas.length + ' reservadas)');
+  logAccion(esNuevo ? 'Pool de IP creado' : 'Pool de IP editado', nombre + ' — ' + ips.length + ' IPs, ' + excluidas.length + ' reservadas');
 });
 
 function openNodoModal(id){
@@ -4433,7 +4482,8 @@ function renderIpSelectInCliente(ipActual, clienteIdActual){
   const asignadas = ipsAsignadas(clienteIdActual);
   let opciones = '<option value="">— Sin IP asignada —</option>';
   pools.forEach(p=>{
-    const libres = (p.ips||[]).filter(ip=> !asignadas.includes(ip) || ip===ipActual);
+    const excluidas = p.excluidas || [];
+    const libres = (p.ips||[]).filter(ip=> (!asignadas.includes(ip) && !excluidas.includes(ip)) || ip===ipActual);
     if(!libres.length) return;
     opciones += `<optgroup label="${p.nombre}">` +
       libres.map(ip=>`<option value="${ip}">${ip}</option>`).join('') +
@@ -4786,7 +4836,7 @@ function renderResultadosBusquedaGlobal(valor){
   const contiene = (v)=> (v!=null ? String(v) : '').toLowerCase().includes(q);
 
   const resultadosClientes = clientes
-    .filter(c=> contiene(c.nombre) || contiene(c.cedula) || contiene(c.vereda) || contiene(c.telefono) || contiene(c.whatsapp) || contiene(c.propietario))
+    .filter(c=> contiene(c.nombre) || contiene(c.cedula) || contiene(c.vereda) || contiene(c.telefono) || contiene(c.whatsapp) || contiene(c.propietario) || contiene(c.ipAsignada))
     .slice(0, 6);
 
   const resultadosPagos = pagos
@@ -4817,7 +4867,7 @@ function renderResultadosBusquedaGlobal(valor){
         <div class="b-icon icon-blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.5 3-6 6.5-6s6.5 2.5 6.5 6"/><circle cx="17" cy="8" r="2.6"/><path d="M15.5 14.2c2.8.3 5 2.6 5 5.8"/></svg></div>
         <div>
           <div class="b-titulo">${c.nombre || 'Sin nombre'}</div>
-          <div class="b-sub">${c.vereda || '—'} · ${c.cedula || 'sin cédula'} — ${badgeForEstado(c)}</div>
+          <div class="b-sub">${c.vereda || '—'} · ${c.cedula || 'sin cédula'}${c.ipAsignada ? ' · IP '+c.ipAsignada : ''} — ${badgeForEstado(c)}</div>
         </div>
       </div>`).join('');
   }
@@ -6130,6 +6180,7 @@ function initBigMap(){
       <div class="popup-line">Vereda: ${c.vereda||'—'}</div>
       <div class="popup-line">Tel: ${c.telefono||'—'} · WA: ${c.whatsapp||'—'}</div>
       <div class="popup-line">Propietario: ${c.propietario||'—'} · Estado: ${vencido ? 'Vencido (moroso)' : (c.estado||'—')}</div>
+      <div class="popup-line">IP: ${c.ipAsignada||'—'}</div>
       <span class="popup-plan">${c.planNombre}</span>
       <div style="margin-top:8px;">
         <button type="button" onclick="copiarCoordenadas(${c.lat}, ${c.lng}, '${c.nombre.replace(/'/g,"\\'")}')" style="width:100%; padding:6px 10px; border-radius:8px; border:1px solid rgba(120,150,255,0.3); background:rgba(47,111,237,0.12); color:#5b9dff; font-size:12px; font-weight:600; cursor:pointer; font-family:'Inter',sans-serif;">
