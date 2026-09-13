@@ -3246,6 +3246,8 @@ function exportarClientesExcel(){
     'Propietario': c.propietario || '',
     'Estado': c.estado || '',
     'Fecha de Corte': mostrarFechaCorte(c),
+    'IP Asignada': c.ipAsignada || '',
+    'Punto de Conexión': c.puntoConexion || '',
     'Latitud': c.lat != null ? c.lat : '',
     'Longitud': c.lng != null ? c.lng : ''
   }));
