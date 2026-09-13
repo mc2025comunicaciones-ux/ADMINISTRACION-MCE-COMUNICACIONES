@@ -494,6 +494,17 @@
         <p>Controla clientes, pagos, cobertura e instalaciones de MCE Comunicaciones desde un solo lugar.</p>
       </div>
 
+      <div class="panel" id="panelAlertaPoolsIp" style="display:none; border:1px solid rgba(245,166,35,0.4); background:rgba(245,166,35,0.08); margin-bottom:20px;">
+        <div class="panel-head">
+          <div>
+            <h2 style="color:#f5a623;">⚠️ Pools de IP por agotarse</h2>
+            <div class="panel-sub" id="alertaPoolsIpSub">—</div>
+          </div>
+          <button class="btn btn-outline btn-small" type="button" onclick="irAVista('infomegas')">Ver Pools de IP</button>
+        </div>
+        <div id="alertaPoolsIpLista" style="display:flex; flex-wrap:wrap; gap:10px;"></div>
+      </div>
+
       <!-- Filtro único: controla todas las tarjetas y paneles de Inicio a la vez, en vez de que cada uno tenga el suyo -->
       <div class="panel" style="padding:14px 18px; margin-bottom:20px; display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
         <div style="display:flex; align-items:center; gap:8px; font-size:11.5px; color:var(--text-muted); font-weight:600; letter-spacing:0.4px; text-transform:uppercase;">
@@ -820,7 +831,7 @@
           <table>
             <thead>
               <tr>
-                <th>Pool</th><th>Rango / Lista</th><th>Total IPs</th><th>Asignadas</th><th>Disponibles</th><th></th>
+                <th>Pool</th><th>Vereda(s)</th><th>Rango / Lista</th><th>Total IPs</th><th>Asignadas</th><th>Disponibles</th><th></th>
               </tr>
             </thead>
             <tbody id="tablaPoolsIp"></tbody>
@@ -1263,7 +1274,7 @@
         </div>
         <div class="form-field">
           <label>Vereda</label>
-          <input type="text" id="cVereda" required placeholder="Ej: Vereda Pedregal" list="listaVeredas">
+          <input type="text" id="cVereda" required placeholder="Ej: Vereda Pedregal" list="listaVeredas" oninput="renderIpSelectInCliente(document.getElementById('cIp').value, document.getElementById('clienteId').value, this.value)">
           <datalist id="listaVeredas"></datalist>
         </div>
         <div class="form-field">
@@ -1555,6 +1566,11 @@
           <input type="text" id="pIpNombre" required placeholder="Ej: Pool Pedregal, Pool Torre Central...">
         </div>
         <div class="form-field full">
+          <label>Vereda(s) a las que aplica este pool</label>
+          <input type="text" id="pIpVeredas" required placeholder="Ej: Pedregal, Cerro" list="listaVeredas">
+          <div style="font-size:11px; color:var(--text-faint); margin-top:5px;">Al crear o editar un cliente, solo se le ofrecerán las IPs de los pools cuya vereda coincida con la del cliente. Si aplica a varias veredas, sepáralas por coma.</div>
+        </div>
+        <div class="form-field full">
           <label>Rango o lista de IPs</label>
           <textarea id="pIpRango" required rows="4" placeholder="Ej: 192.168.10.2-192.168.10.254&#10;o 192.168.10.2-254&#10;o 192.168.10.0/24&#10;o lista separada por comas: 192.168.10.5, 192.168.10.6" style="width:100%; resize:vertical; font-family:'SF Mono',Consolas,monospace; font-size:13px; padding:10px 12px; border-radius:10px; background:var(--bg-panel); border:1px solid var(--border-soft); color:var(--text-primary);"></textarea>
           <div style="font-size:11px; color:var(--text-faint); margin-top:5px;">Acepta rangos (192.168.10.2-192.168.10.254 o 192.168.10.2-254), notación CIDR (192.168.10.0/24) o IPs sueltas separadas por coma o salto de línea. Puedes combinar varias líneas.</div>
@@ -1593,6 +1609,26 @@
     </div>
     <div class="modal-actions">
       <button type="button" class="btn btn-outline" onclick="closeModal('modalHistorialPagos')" style="width:100%;">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalHistorialIp">
+  <div class="modal" style="max-width:520px;">
+    <div class="modal-title" id="historialIpTitle">Historial de IP</div>
+    <div class="modal-sub" id="historialIpSub">Cambios de IP registrados para este cliente</div>
+    <div style="overflow-x:auto; max-height:340px; overflow-y:auto;">
+      <table>
+        <thead><tr><th>Fecha</th><th>IP Anterior</th><th>IP Nueva</th></tr></thead>
+        <tbody id="tablaHistorialIp"></tbody>
+      </table>
+      <div class="empty-state" id="historialIpEmpty" style="display:none;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M7 21h10M9 17v4M15 17v4"/></svg>
+        <p>Este cliente aún no tiene cambios de IP registrados.</p>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-outline" onclick="closeModal('modalHistorialIp')" style="width:100%;">Cerrar</button>
     </div>
   </div>
 </div>
@@ -4155,6 +4191,12 @@ const DB_KEY_POOLS_IP = 'mce_pools_ip';
 function getPoolsIp(){ try{ return JSON.parse(localStorage.getItem(DB_KEY_POOLS_IP) || '[]'); }catch(e){ return []; } }
 function setPoolsIp(list){ localStorage.setItem(DB_KEY_POOLS_IP, JSON.stringify(list)); fbEnviar('poolsIp', list); }
 
+/* Convierte el texto "Pedregal, Cerro" en un array normalizado, igual que se
+   hace con las veredas de un Nodo (misma convención en toda la app). */
+function veredasDePool(pool){
+  return (pool.veredas || '').split(',').map(v=>v.trim()).filter(Boolean);
+}
+
 function ipALong(ip){
   const m = String(ip||'').trim().match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
   if(!m) return null;
@@ -4208,6 +4250,32 @@ function ipsAsignadas(excluirClienteId){
     .filter(c=>c.ipAsignada && c.id!==excluirClienteId)
     .map(c=>c.ipAsignada);
 }
+/* Umbral: si a un pool le quedan estas IPs o menos, se avisa en Inicio para
+   que no te agarre desprevenido cuando llegue un cliente nuevo. */
+const IP_POOL_UMBRAL_BAJO = 3;
+function renderAlertaPoolsIp(){
+  const panel = document.getElementById('panelAlertaPoolsIp');
+  if(!panel) return;
+  const pools = getPoolsIp();
+  const asignadas = ipsAsignadas();
+  const bajos = pools.map(p=>{
+    const excluidas = p.excluidas || [];
+    const disponibles = (p.ips||[]).filter(ip=>!asignadas.includes(ip) && !excluidas.includes(ip));
+    return { nombre: p.nombre, disponibles: disponibles.length, total: (p.ips||[]).length };
+  }).filter(p=> p.total>0 && p.disponibles <= IP_POOL_UMBRAL_BAJO);
+
+  if(!bajos.length){ panel.style.display = 'none'; return; }
+  panel.style.display = 'block';
+  document.getElementById('alertaPoolsIpSub').textContent = bajos.length===1
+    ? 'Un pool está por quedarse sin IPs libres para ofrecer a clientes nuevos'
+    : bajos.length + ' pools están por quedarse sin IPs libres para ofrecer a clientes nuevos';
+  document.getElementById('alertaPoolsIpLista').innerHTML = bajos.map(p=>`
+    <div class="stat-card" style="padding:10px 14px; flex:1; min-width:180px;">
+      <div class="cell-strong">${p.nombre}</div>
+      <div class="mono" style="color:${p.disponibles===0?'var(--danger)':'var(--warning)'}; font-size:18px;">${p.disponibles} disponible${p.disponibles===1?'':'s'}</div>
+      <div class="cell-muted" style="font-size:11px;">de ${p.total} IPs en total</div>
+    </div>`).join('');
+}
 function renderPoolsIpTable(){
   const pools = getPoolsIp();
   const tbody = document.getElementById('tablaPoolsIp');
@@ -4227,6 +4295,7 @@ function renderPoolsIpTable(){
     return `
     <tr>
       <td class="cell-strong">${p.nombre}</td>
+      <td class="cell-muted">${veredasDePool(p).join(', ') || '<span style="color:var(--warning);">Sin vereda — no se ofrecerá a ningún cliente</span>'}</td>
       <td class="mono cell-muted" style="white-space:pre-line;">${(p.rango||'').replace(/</g,'&lt;')}</td>
       <td class="mono">${total}</td>
       <td class="mono cell-muted">${(p.ips||[]).filter(ip=>asignadas.includes(ip)).length}${excluidas.length ? ' <span style="color:var(--text-faint);">+ '+excluidas.length+' reservada'+(excluidas.length===1?'':'s')+'</span>' : ''}</td>
@@ -4294,6 +4363,7 @@ function openPoolIpModal(id){
       document.getElementById('poolIpModalTitle').textContent = 'Editar Pool de IP';
       document.getElementById('pIpId').value = p.id;
       document.getElementById('pIpNombre').value = p.nombre;
+      document.getElementById('pIpVeredas').value = p.veredas || '';
       document.getElementById('pIpRango').value = p.rango;
       poolIpExcluidasEdit = new Set(p.excluidas || []);
     }
@@ -4307,6 +4377,7 @@ function deletePoolIp(id){
   const p = getPoolsIp().find(x=>x.id===id);
   setPoolsIp(getPoolsIp().filter(x=>x.id!==id));
   renderPoolsIpTable();
+  renderAlertaPoolsIp();
   showToast('Pool de IP eliminado');
   logAccion('Pool de IP eliminado', p ? p.nombre : id);
 }
@@ -4324,18 +4395,20 @@ document.getElementById('formPoolIp').addEventListener('submit', function(e){
   e.preventDefault();
   const id = document.getElementById('pIpId').value || 'pip_'+Date.now();
   const nombre = document.getElementById('pIpNombre').value.trim();
+  const veredas = document.getElementById('pIpVeredas').value.trim();
   const rango = document.getElementById('pIpRango').value.trim();
   const ips = ipTextoALista(rango);
   if(!ips.length){ showToast('No se detectó ninguna IP válida — revisa el rango o la lista'); return; }
   const excluidas = Array.from(poolIpExcluidasEdit).filter(ip=>ips.includes(ip));
-  const pool = { id, nombre, rango, ips, excluidas };
+  const pool = { id, nombre, veredas, rango, ips, excluidas };
   const pools = getPoolsIp();
   const idx = pools.findIndex(p=>p.id===id);
   const esNuevo = idx < 0;
   if(idx>=0) pools[idx] = pool; else pools.push(pool);
   setPoolsIp(pools);
   renderPoolsIpTable();
-  renderIpSelectInCliente(document.getElementById('cIp') ? document.getElementById('cIp').value : null);
+  renderAlertaPoolsIp();
+  renderIpSelectInCliente(document.getElementById('cIp') ? document.getElementById('cIp').value : null, document.getElementById('clienteId') ? document.getElementById('clienteId').value : null, document.getElementById('cVereda') ? document.getElementById('cVereda').value : '');
   closeModal('modalPoolIp');
   showToast('Pool de IP guardado correctamente (' + ips.length + ' IPs, ' + excluidas.length + ' reservadas)');
   logAccion(esNuevo ? 'Pool de IP creado' : 'Pool de IP editado', nombre + ' — ' + ips.length + ' IPs, ' + excluidas.length + ' reservadas');
@@ -4475,10 +4548,19 @@ function renderPlanSelectInCliente(selectedPlanId){
 /* Rellena el select de IP del modal de cliente solo con las IPs libres de
    todos los pools (más la IP actual del cliente que se está editando, para
    que no desaparezca de la lista solo porque ya está "asignada" a él mismo). */
-function renderIpSelectInCliente(ipActual, clienteIdActual){
+function renderIpSelectInCliente(ipActual, clienteIdActual, veredaCliente){
   const sel = document.getElementById('cIp');
   if(!sel) return;
-  const pools = getPoolsIp();
+  const veredaTexto = (veredaCliente || (document.getElementById('cVereda') ? document.getElementById('cVereda').value : '')).trim();
+  if(!veredaTexto){
+    sel.innerHTML = '<option value="">— Escribe primero la vereda del cliente —</option>';
+    sel.value = '';
+    sel.disabled = true;
+    return;
+  }
+  sel.disabled = false;
+  const veredaNorm = normalizarTexto(veredaTexto);
+  const pools = getPoolsIp().filter(p=> veredasDePool(p).some(v=>normalizarTexto(v)===veredaNorm));
   const asignadas = ipsAsignadas(clienteIdActual);
   let opciones = '<option value="">— Sin IP asignada —</option>';
   pools.forEach(p=>{
@@ -4489,10 +4571,17 @@ function renderIpSelectInCliente(ipActual, clienteIdActual){
       libres.map(ip=>`<option value="${ip}">${ip}</option>`).join('') +
       '</optgroup>';
   });
-  // Si la IP actual del cliente ya no pertenece a ningún pool (por ejemplo el
-  // pool se borró), igual se muestra para no perderla al guardar de nuevo.
+  // Si la IP actual del cliente ya no pertenece a ningún pool de su vereda
+  // (por ejemplo el pool se borró o cambió de vereda), igual se muestra para
+  // no perderla al guardar de nuevo — el admin decide si la deja o la quita.
   if(ipActual && !pools.some(p=>(p.ips||[]).includes(ipActual))){
-    opciones += `<optgroup label="IP actual (fuera de los pools)"><option value="${ipActual}">${ipActual}</option></optgroup>`;
+    opciones += `<optgroup label="IP actual (fuera de los pools de esta vereda)"><option value="${ipActual}">${ipActual}</option></optgroup>`;
+  }
+  if(!pools.length){
+    opciones = `<option value="">— No hay pools de IP para "${veredaTexto}" —</option>`;
+    if(ipActual){
+      opciones += `<optgroup label="IP actual (fuera de los pools de esta vereda)"><option value="${ipActual}">${ipActual}</option></optgroup>`;
+    }
   }
   sel.innerHTML = opciones;
   sel.value = ipActual || '';
@@ -5171,6 +5260,7 @@ function renderStats(){
     document.getElementById('resumenPagosInicioNota').textContent = 'clientes activos ya pagaron este mes (' + pct + '%)' + notaFiltro;
     document.getElementById('resumenPagosInicioBarra').style.width = pct + '%';
   }
+  renderAlertaPoolsIp();
 }
 
 /* Abre/cierra el detalle de "Megas y Recaudo por Vereda" — colapsado por
@@ -5249,6 +5339,9 @@ function renderClientesTable(){
           <button class="icon-btn" type="button" onclick="verHistorialPagos('${c.id}')" title="Historial de pagos">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.2 3.2"/></svg>
           </button>
+          <button class="icon-btn" type="button" onclick="verHistorialIp('${c.id}')" title="Historial de IP">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M7 21h10M9 17v4M15 17v4"/></svg>
+          </button>
           ${perm.editar ? `<button class="icon-btn" type="button" onclick="editCliente('${c.id}')" title="Editar">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
           </button>` : ''}
@@ -5261,6 +5354,45 @@ function renderClientesTable(){
   `).join('');
 }
 
+/* ---------- HISTORIAL DE CAMBIOS DE IP ---------- */
+const DB_KEY_HISTORIAL_IP = 'mce_historial_ip';
+function getHistorialIp(){ try{ return JSON.parse(localStorage.getItem(DB_KEY_HISTORIAL_IP) || '[]'); }catch(e){ return []; } }
+function setHistorialIp(list){ localStorage.setItem(DB_KEY_HISTORIAL_IP, JSON.stringify(list)); fbEnviar('historialIp', list); }
+function registrarCambioIp(clienteId, clienteNombre, ipAnterior, ipNueva){
+  if((ipAnterior||null) === (ipNueva||null)) return; // no hubo cambio real
+  const historial = getHistorialIp();
+  historial.push({
+    id: 'hip_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
+    clienteId, clienteNombre,
+    ipAnterior: ipAnterior || null,
+    ipNueva: ipNueva || null,
+    fecha: new Date().toISOString()
+  });
+  setHistorialIp(historial);
+}
+function verHistorialIp(clienteId){
+  const c = getClientes().find(x=>x.id===clienteId);
+  if(!c) return;
+  document.getElementById('historialIpTitle').textContent = 'Historial de IP — ' + c.nombre;
+  document.getElementById('historialIpSub').textContent = 'IP actual: ' + (c.ipAsignada || 'sin IP asignada');
+  const cambios = getHistorialIp().filter(h=>h.clienteId===clienteId).sort((a,b)=> new Date(b.fecha) - new Date(a.fecha));
+  const tbody = document.getElementById('tablaHistorialIp');
+  const empty = document.getElementById('historialIpEmpty');
+  if(!cambios.length){
+    tbody.innerHTML = '';
+    empty.style.display = 'block';
+  } else {
+    empty.style.display = 'none';
+    tbody.innerHTML = cambios.map(h=>`
+      <tr>
+        <td class="cell-muted">${new Date(h.fecha).toLocaleString('es-CO')}</td>
+        <td class="mono cell-muted">${h.ipAnterior || '— (sin IP)'}</td>
+        <td class="mono cell-strong">${h.ipNueva || '— (sin IP)'}</td>
+      </tr>`).join('');
+  }
+  document.getElementById('modalHistorialIp').classList.add('active');
+}
+
 function openClienteModal(id){
   const perm = permisosActuales().clientes;
   if(!id && !perm.crear){ showToast('No tienes permiso para crear clientes'); return; }
@@ -5270,7 +5402,7 @@ function openClienteModal(id){
   document.getElementById('coordDisplay').textContent = 'Sin coordenadas — usa tu ubicación o marca en el mapa';
   document.getElementById('clienteModalTitle').textContent = 'Nuevo Cliente';
   renderPlanSelectInCliente();
-  renderIpSelectInCliente(null, null);
+  renderIpSelectInCliente(null, null, '');
   document.getElementById('modalCliente').classList.add('active');
 
   setTimeout(()=>{
@@ -5291,7 +5423,7 @@ function openClienteModal(id){
         document.getElementById('cFechaCorte').value = asegurarFechaVencimiento(c);
         document.getElementById('cPrecio').value = c.precio;
         document.getElementById('cPuntoConexion').value = c.puntoConexion || '';
-        renderIpSelectInCliente(c.ipAsignada || '', c.id);
+        renderIpSelectInCliente(c.ipAsignada || '', c.id, c.vereda || '');
 
         // Repara el enlace del plan si quedó "huérfano" (por una sincronización
         // vieja u otra causa): busca a qué plan corresponde de verdad y, si
@@ -5428,6 +5560,15 @@ document.getElementById('formCliente').addEventListener('submit', function(e){
   if(!nombre || !cedula || !telefono || !vereda || !corte){ showToast('Completa nombre, cédula, vereda, teléfono y día de corte'); return; }
   if(!planId){ showToast('Selecciona un plan contratado (créalo primero en "Planes" si no existe)'); return; }
 
+  const ipElegida = document.getElementById('cIp').value.trim() || null;
+  if(ipElegida){
+    const otroConMismaIp = getClientes().find(c=>c.id!==id && c.ipAsignada===ipElegida);
+    if(otroConMismaIp){
+      showToast('Esa IP ya está asignada a ' + otroConMismaIp.nombre + ' — elige otra o libérala primero');
+      return;
+    }
+  }
+
   // La fecha de corte se toma del campo editable (se auto-completa al escribir el
   // día del mes, pero si el admin la corrigió a mano, se respeta ese valor).
   const fechaCorteInput = document.getElementById('cFechaCorte').value;
@@ -5445,7 +5586,7 @@ document.getElementById('formCliente').addEventListener('submit', function(e){
     planVelocidad,
     precio: Number(document.getElementById('cPrecio').value || 0),
     puntoConexion: document.getElementById('cPuntoConexion').value.trim(),
-    ipAsignada: document.getElementById('cIp').value.trim() || null,
+    ipAsignada: ipElegida,
     lat: selectedCoords ? selectedCoords.lat : null,
     lng: selectedCoords ? selectedCoords.lng : null,
   };
@@ -5453,8 +5594,10 @@ document.getElementById('formCliente').addEventListener('submit', function(e){
   const clientes = getClientes();
   const idx = clientes.findIndex(c=>c.id===id);
   const esNuevo = idx < 0;
+  const ipAnterior = esNuevo ? null : clientes[idx].ipAsignada;
   if(idx>=0) clientes[idx] = cliente; else clientes.push(cliente);
   setClientes(clientes);
+  registrarCambioIp(id, nombre, ipAnterior, cliente.ipAsignada);
 
   renderClientesTable();
   renderStats();
@@ -7272,7 +7415,8 @@ fbSincronizar('equipos', DB_KEY_EQUIPOS, ['renderEquiposTable']);
 fbSincronizar('usuarios', DB_KEY_USUARIOS, ['renderUsuariosTable']);
 fbSincronizar('recordatorios', DB_KEY_RECORDATORIOS, ['renderListaRecordatorios']);
 fbSincronizar('nodos', DB_KEY_NODOS, ['renderNodosTable']);
-fbSincronizar('poolsIp', DB_KEY_POOLS_IP, ['renderPoolsIpTable']);
+fbSincronizar('poolsIp', DB_KEY_POOLS_IP, ['renderPoolsIpTable','renderAlertaPoolsIp']);
+fbSincronizar('historialIp', DB_KEY_HISTORIAL_IP, []);
 fbSincronizar('historialNodos', DB_KEY_HISTORIAL_NODOS, []);
 fbSincronizar('logs', DB_KEY_LOGS, ['renderLogsTable']);
 fbSincronizar('egresos', DB_KEY_EGRESOS, ['renderResumenEgresos','renderEgresosProveedoresTable','renderEgresosComprasTable']);
