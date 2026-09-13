@@ -1054,6 +1054,12 @@
             <div class="panel-sub">Cruza lo recaudado (Pagos) contra lo pagado (Egresos) para saber qué te queda de utilidad</div>
           </div>
           <select id="selectorPeriodoBalance" onchange="renderBalance()" style="font-size:13px; padding:8px 12px; border-radius:10px; background:var(--bg-panel); border:1px solid var(--border-soft); color:var(--text-primary); min-width:190px;"></select>
+          <select id="selectorPropietarioBalance" onchange="renderBalance()" style="font-size:13px; padding:8px 12px; border-radius:10px; background:var(--bg-panel); border:1px solid var(--border-soft); color:var(--text-primary); min-width:150px;">
+            <option value="">Todos los propietarios</option>
+            <option value="EDWIN">Solo EDWIN</option>
+            <option value="IVAN">Solo IVAN</option>
+            <option value="SOCIA">Solo SOCIA</option>
+          </select>
         </div>
         <div style="margin-bottom:22px;">
           <button class="btn btn-outline btn-small" type="button" onclick="descargarReportePDFMensual()">
@@ -6923,8 +6929,10 @@ function propietarioDePago(pago, mapaClientesPorId){
 }
 
 /* Calcula ingresos, egresos y utilidad — total y por propietario — para un
-   periodo "YYYY-MM" dado, o para todo el histórico si periodo es '' */
-function calcularBalance(periodo){
+   periodo "YYYY-MM" dado (o todo el histórico si periodo es ''), y
+   opcionalmente filtrado a un solo propietario (si propietarioFiltro viene vacío,
+   incluye a los tres). */
+function calcularBalance(periodo, propietarioFiltro){
   const clientes = getClientes();
   const mapaClientesPorId = {};
   clientes.forEach(c=> mapaClientesPorId[c.id] = c);
@@ -6937,6 +6945,7 @@ function calcularBalance(periodo){
   getPagos().forEach(p=>{
     if(periodo && normalizarPeriodo(p.periodo) !== periodo) return;
     const prop = propietarioDePago(p, mapaClientesPorId);
+    if(propietarioFiltro && prop !== propietarioFiltro) return;
     const valor = Number(p.valor||0);
     resultado.ingresos += valor;
     if(resultado.porPropietario[prop]) resultado.porPropietario[prop].ingreso += valor;
@@ -6945,9 +6954,10 @@ function calcularBalance(periodo){
   getEgresos().forEach(e=>{
     const per = (e.fecha||'').slice(0,7);
     if(periodo && per !== periodo) return;
+    const prop = resultado.porPropietario[e.propietario] ? e.propietario : 'EDWIN';
+    if(propietarioFiltro && prop !== propietarioFiltro) return;
     const monto = totalEgreso(e);
     resultado.egresos += monto;
-    const prop = resultado.porPropietario[e.propietario] ? e.propietario : 'EDWIN';
     resultado.porPropietario[prop].egreso += monto;
   });
 
@@ -6973,7 +6983,9 @@ function renderSelectorPeriodoBalance(){
 function renderBalance(){
   renderSelectorPeriodoBalance();
   const periodo = document.getElementById('selectorPeriodoBalance').value;
-  const b = calcularBalance(periodo);
+  const propietarioSel = document.getElementById('selectorPropietarioBalance');
+  const propietarioFiltro = propietarioSel ? propietarioSel.value : '';
+  const b = calcularBalance(periodo, propietarioFiltro);
   const utilidad = b.ingresos - b.egresos;
   const margen = b.ingresos > 0 ? (utilidad / b.ingresos * 100) : 0;
 
@@ -7023,6 +7035,8 @@ function renderGraficoBalanceHistorico(){
 
   const pagos = getPagos();
   const egresos = getEgresos();
+  const propietarioSel = document.getElementById('selectorPropietarioBalance');
+  const propietarioFiltro = propietarioSel ? propietarioSel.value : '';
   if(pagos.length===0 && egresos.length===0){
     canvas.style.display = 'none';
     if(empty) empty.style.display = 'block';
@@ -7040,11 +7054,15 @@ function renderGraficoBalanceHistorico(){
   }
   const ingresosPorPeriodo = {}; const egresosPorPeriodo = {};
   periodos.forEach(p=>{ ingresosPorPeriodo[p]=0; egresosPorPeriodo[p]=0; });
+  const mapaClientesPorId = {};
+  getClientes().forEach(c=> mapaClientesPorId[c.id] = c);
   pagos.forEach(p=>{
+    if(propietarioFiltro && propietarioDePago(p, mapaClientesPorId) !== propietarioFiltro) return;
     const per = normalizarPeriodo(p.periodo);
     if(ingresosPorPeriodo.hasOwnProperty(per)) ingresosPorPeriodo[per] += Number(p.valor||0);
   });
   egresos.forEach(e=>{
+    if(propietarioFiltro && (e.propietario||'EDWIN') !== propietarioFiltro) return;
     const per = (e.fecha||'').slice(0,7);
     if(egresosPorPeriodo.hasOwnProperty(per)) egresosPorPeriodo[per] += totalEgreso(e);
   });
@@ -7088,6 +7106,40 @@ function renderGraficoBalanceHistorico(){
 /* Dibuja una tabla simple (encabezado + filas) con jsPDF, partiendo la
    tabla en varias páginas si no cabe, repitiendo el encabezado en cada
    página nueva. Devuelve la posición Y donde quedó el cursor. */
+/* Recaudo agrupado por forma de pago (Efectivo, Transacción, etc.) dentro
+   del periodo elegido, o de todo el histórico si no se elige uno. Útil para
+   declarar renta: separa qué parte del ingreso fue en efectivo. */
+function calcularRecaudoPorFormaPago(periodo, propietarioFiltro){
+  const clientes = getClientes();
+  const mapaClientesPorId = {};
+  clientes.forEach(c=> mapaClientesPorId[c.id] = c);
+  const resultado = {};
+  getPagos().forEach(p=>{
+    if(periodo && normalizarPeriodo(p.periodo) !== periodo) return;
+    if(propietarioFiltro && propietarioDePago(p, mapaClientesPorId) !== propietarioFiltro) return;
+    const forma = p.formaPago || 'Efectivo';
+    resultado[forma] = (resultado[forma]||0) + Number(p.valor||0);
+  });
+  return resultado;
+}
+/* Estado de cartera AL DÍA DE HOY, agrupado por vereda — no depende del
+   periodo elegido para el reporte, porque "vencido" es un estado actual,
+   no histórico. Sirve para ver dónde se concentra la morosidad. Se puede
+   filtrar a un solo propietario. */
+function calcularCarteraPorVereda(propietarioFiltro){
+  const mapa = {};
+  getClientes().forEach(c=>{
+    if(propietarioFiltro && (c.propietario||'EDWIN') !== propietarioFiltro) return;
+    const v = (c.vereda||'').trim() || 'Sin vereda';
+    if(!mapa[v]) mapa[v] = { activos:0, vencidos:0, pendienteValor:0 };
+    if(c.estado==='activo'){
+      mapa[v].activos++;
+      if(estaVencido(c)){ mapa[v].vencidos++; mapa[v].pendienteValor += Number(c.precio||0); }
+    }
+  });
+  return mapa;
+}
+
 function pdfDibujarTabla(doc, x, colWidths, headers, filas, y, pageH, margenInf, alinDerecha){
   const rowH = 7;
   const anchoTotal = colWidths.reduce((a,b)=>a+b,0);
@@ -7152,14 +7204,17 @@ function descargarReportePDFMensual(){
     const selPeriodo = document.getElementById('selectorPeriodoBalance');
     const periodo = selPeriodo ? selPeriodo.value : '';
     const tituloPeriodo = periodo ? periodoTexto(periodo) : 'Todo el histórico';
+    const selPropietario = document.getElementById('selectorPropietarioBalance');
+    const propietarioFiltro = selPropietario ? selPropietario.value : '';
+    const tituloPropietario = propietarioFiltro || 'Todos los propietarios';
 
     doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(17,24,39);
-    doc.text('Periodo: ' + tituloPeriodo, 15, y);
+    doc.text('Periodo: ' + tituloPeriodo + '   —   Propietario: ' + tituloPropietario, 15, y);
     doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(120,120,120);
     doc.text('Generado el ' + new Date().toLocaleString('es-CO'), pageW-15, y, {align:'right'});
     y += 10;
 
-    const b = calcularBalance(periodo);
+    const b = calcularBalance(periodo, propietarioFiltro);
     const utilidad = b.ingresos - b.egresos;
     const margen = b.ingresos > 0 ? (utilidad / b.ingresos * 100) : 0;
 
@@ -7173,17 +7228,50 @@ function descargarReportePDFMensual(){
     ], y, pageH, margenInf, [false,true]);
     y += 10;
 
+    if(!propietarioFiltro){
+      doc.setFont('helvetica','bold'); doc.setFontSize(10.5); doc.setTextColor(17,24,39);
+      doc.text('Utilidad por Propietario', 15, y); y += 5;
+      const filasProp = ['EDWIN','IVAN','SOCIA'].map(p=>{
+        const d = b.porPropietario[p];
+        return [p, fmtMoney(d.ingreso), fmtMoney(d.egreso), fmtMoney(d.ingreso-d.egreso)];
+      });
+      y = pdfDibujarTabla(doc, 15, [40,50,50,40], ['Propietario','Ingresos','Egresos','Utilidad'], filasProp, y, pageH, margenInf, [false,true,true,true]);
+      y += 10;
+    }
+
+    const recaudoForma = calcularRecaudoPorFormaPago(periodo, propietarioFiltro);
+    const filasForma = Object.keys(recaudoForma).map(f=>[f, fmtMoney(recaudoForma[f])]);
+    if(filasForma.length){
+      if(y > pageH - margenInf - 20){ doc.addPage(); y = 20; }
+      doc.setFont('helvetica','bold'); doc.setFontSize(10.5); doc.setTextColor(17,24,39);
+      doc.text('Recaudo por Forma de Pago', 15, y); y += 5;
+      y = pdfDibujarTabla(doc, 15, [90,80], ['Forma de Pago','Total'], filasForma, y, pageH, margenInf, [false,true]);
+      y += 10;
+    }
+
+    if(y > pageH - margenInf - 20){ doc.addPage(); y = 20; }
     doc.setFont('helvetica','bold'); doc.setFontSize(10.5); doc.setTextColor(17,24,39);
-    doc.text('Utilidad por Propietario', 15, y); y += 5;
-    const filasProp = ['EDWIN','IVAN','SOCIA'].map(p=>{
-      const d = b.porPropietario[p];
-      return [p, fmtMoney(d.ingreso), fmtMoney(d.egreso), fmtMoney(d.ingreso-d.egreso)];
-    });
-    y = pdfDibujarTabla(doc, 15, [40,50,50,40], ['Propietario','Ingresos','Egresos','Utilidad'], filasProp, y, pageH, margenInf, [false,true,true,true]);
-    y += 10;
+    doc.text('Estado de Cartera por Vereda (corte de hoy)', 15, y); y += 5;
+    doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(120,120,120);
+    doc.text('No depende del periodo elegido arriba: refleja quién está al día o vencido en este momento.', 15, y); y += 5;
+    const carteraVereda = calcularCarteraPorVereda(propietarioFiltro);
+    const veredasOrdenadas = Object.keys(carteraVereda).sort((a,b)=>a.localeCompare(b,'es'));
+    if(veredasOrdenadas.length){
+      const filasCartera = veredasOrdenadas.map(v=>{
+        const d = carteraVereda[v];
+        const pctMora = d.activos>0 ? Math.round((d.vencidos/d.activos)*100)+'%' : '0%';
+        return [v, String(d.activos), String(d.vencidos), pctMora, fmtMoney(d.pendienteValor)];
+      });
+      y = pdfDibujarTabla(doc, 15, [55,28,28,24,45], ['Vereda','Activos','Vencidos','% Mora','Pendiente'], filasCartera, y, pageH, margenInf, [false,true,true,true,true]);
+      y += 10;
+    } else {
+      doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(120,120,120);
+      doc.text('Aún no hay clientes registrados.', 15, y); y += 8;
+    }
 
     let proveedoresPeriodo = getEgresos().filter(e=>e.tipo==='proveedor');
     if(periodo) proveedoresPeriodo = proveedoresPeriodo.filter(e=> (e.fecha||'').slice(0,7)===periodo);
+    if(propietarioFiltro) proveedoresPeriodo = proveedoresPeriodo.filter(e=> (e.propietario||'EDWIN')===propietarioFiltro);
     proveedoresPeriodo.sort((a,c)=> new Date(a.fecha||0) - new Date(c.fecha||0));
     if(y > pageH - margenInf - 20){ doc.addPage(); y = 20; }
     doc.setFont('helvetica','bold'); doc.setFontSize(10.5); doc.setTextColor(17,24,39);
@@ -7202,6 +7290,7 @@ function descargarReportePDFMensual(){
 
     let comprasPeriodo = getEgresos().filter(e=>e.tipo==='compra');
     if(periodo) comprasPeriodo = comprasPeriodo.filter(e=> (e.fecha||'').slice(0,7)===periodo);
+    if(propietarioFiltro) comprasPeriodo = comprasPeriodo.filter(e=> (e.propietario||'EDWIN')===propietarioFiltro);
     comprasPeriodo.sort((a,c)=> new Date(a.fecha||0) - new Date(c.fecha||0));
     if(y > pageH - margenInf - 20){ doc.addPage(); y = 20; }
     doc.setFont('helvetica','bold'); doc.setFontSize(10.5); doc.setTextColor(17,24,39);
@@ -7225,10 +7314,10 @@ function descargarReportePDFMensual(){
       doc.text('Página ' + p + ' de ' + totalPaginas, pageW-15, pageH-10, {align:'right'});
     }
 
-    const sufijoArchivo = (periodo || 'historico').replace(/[^0-9a-zA-Z-]+/g,'_');
+    const sufijoArchivo = (periodo || 'historico').replace(/[^0-9a-zA-Z-]+/g,'_') + (propietarioFiltro ? '_'+propietarioFiltro : '');
     doc.save('Reporte_Balance_' + sufijoArchivo + '.pdf');
     showToast('Reporte PDF descargado');
-    logAccion('Reporte PDF mensual descargado', tituloPeriodo);
+    logAccion('Reporte PDF mensual descargado', tituloPeriodo + ' — ' + tituloPropietario);
   }catch(err){
     console.error(err);
     showToast('No se pudo generar el reporte PDF');
