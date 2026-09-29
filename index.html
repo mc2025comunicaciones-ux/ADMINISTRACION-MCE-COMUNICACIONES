@@ -1172,6 +1172,7 @@
           <button class="btn btn-outline" type="button" onclick="diagnosticarUsuarios()">Diagnóstico: ¿Por qué no puede entrar el otro usuario?</button>
           <button class="btn btn-outline" type="button" onclick="sincronizarTodosClientes()">Sincronizar Todo Ahora (Clientes, Planes, Pagos, Equipos, Usuarios, Logs, Egresos, Avisos)</button>
           <button class="btn btn-green" type="button" onclick="importarDatosDesdeNube()">Importar / Actualizar Datos en Este Dispositivo</button>
+          <button class="btn btn-outline" type="button" onclick="repararCicloPagos()">Reparar ciclo de pagos (fechas de corte)</button>
         </div>
         <div class="coord-display" id="syncStatus" style="margin-top:16px; display:none;"></div>
         <div class="coord-display" style="margin-top:12px; color:var(--text-muted); align-items:flex-start; line-height:1.6;">
@@ -2013,32 +2014,42 @@ const _fbUltimoEnvio = {};
 // Envuelve un par getX/setX existente para que setX también escriba en Firebase,
 // y agrega un listener que actualiza localStorage + refresca la pantalla cuando
 // otro dispositivo cambia los datos.
+const _fbInicializado = {};
 function fbSincronizar(nombre, dbKey, renderFns){
   const ref = fbDB.ref(nombre);
-  ref.once('value').then(function(snap){
-    if(snap.val() === null || snap.val() === undefined){
-      // Firebase está vacío para esta clave: sube lo que ya haya en este dispositivo
-      // para que sirva de punto de partida para todos los demás.
-      let local = [];
-      try{ local = JSON.parse(localStorage.getItem(dbKey) || '[]'); }catch(e){}
-      if(local.length){ fbEnviar(nombre, local); }
-    }
-  });
-  ref.on('value', function(snap){
-    const remoto = snap.val();
-    if(remoto === null || remoto === undefined) return; // aún no hay nada en Firebase para esta clave
-    const remotoStr = JSON.stringify(remoto);
-    if(_fbUltimoEnvio[nombre] === remotoStr) return; // es el eco de lo que este mismo dispositivo envió
-    localStorage.setItem(dbKey, remotoStr);
-    renderFns.forEach(function(fn){
-      try{ if(typeof window[fn] === 'function') window[fn](); }catch(e){ console.warn('Error refrescando', fn, e); }
+  // Marca "_init/<nombre>": distingue "nunca se ha subido nada" de "la lista quedó vacía a propósito"
+  // (Firebase guarda una lista vacía como null, y antes eso se ignoraba: al reiniciar el recaudo
+  // los pagos borrados volvían a aparecer solos).
+  fbDB.ref('_init/'+nombre).once('value').then(function(flag){
+    _fbInicializado[nombre] = (flag.val() === true);
+    ref.once('value').then(function(snap){
+      if((snap.val() === null || snap.val() === undefined) && !_fbInicializado[nombre]){
+        let local = [];
+        try{ local = JSON.parse(localStorage.getItem(dbKey) || '[]'); }catch(e){}
+        if(local.length){ fbEnviar(nombre, local); }
+      }
     });
-  }, function(err){ console.warn('Firebase sync error ('+nombre+'):', err); });
+    ref.on('value', function(snap){
+      let remoto = snap.val();
+      if(remoto === null || remoto === undefined){
+        if(!_fbInicializado[nombre]) return; // aún no hay nada en Firebase para esta clave
+        remoto = []; // ya se había usado: significa lista vacía
+      }
+      const remotoStr = JSON.stringify(remoto);
+      if(_fbUltimoEnvio[nombre] === remotoStr) return; // eco de lo que este mismo dispositivo envió
+      localStorage.setItem(dbKey, remotoStr);
+      renderFns.forEach(function(fn){
+        try{ if(typeof window[fn] === 'function') window[fn](); }catch(e){ console.warn('Error refrescando', fn, e); }
+      });
+    }, function(err){ console.warn('Firebase sync error ('+nombre+'):', err); });
+  });
 }
 
 function fbEnviar(nombre, list){
   const str = JSON.stringify(list || []);
   _fbUltimoEnvio[nombre] = str;
+  _fbInicializado[nombre] = true;
+  fbDB.ref('_init/'+nombre).set(true).catch(function(){});
   fbDB.ref(nombre).set(list || []).catch(function(err){ console.warn('Error enviando a Firebase ('+nombre+'):', err); });
 }
 
@@ -2884,7 +2895,7 @@ async function importarDatosDesdeNube(){
         local.nombre = rc.nombre || local.nombre;
         local.estado = mapEstadoDesdeHoja(rc.estado) || local.estado;
         local.vereda = rc.vereda || local.vereda;
-        local.fechaVencimiento = rc.vencimiento || local.fechaVencimiento;
+        if(!local.fechaVencimiento){ local.fechaVencimiento = normalizarFechaISO(rc.vencimiento) || local.fechaVencimiento; } // la fecha de este dispositivo/Firebase manda; la Hoja solo rellena si está vacía
         local.precio = rc.valor || local.precio;
         local.puntoConexion = rc.puntoConexion || local.puntoConexion;
         // El teléfono y WhatsApp solo se sobreescriben si la Hoja trae
@@ -2914,7 +2925,7 @@ async function importarDatosDesdeNube(){
           id: 'cli_' + cedulaKey,
           nombre: rc.nombre || '', cedula: rc.cedula || '', vereda: rc.vereda || '',
           telefono: rc.telefono || '', whatsapp: rc.whatsapp || '', estado: mapEstadoDesdeHoja(rc.estado) || 'activo',
-          corte: 1, fechaVencimiento: rc.vencimiento || '',
+          corte: 1, fechaVencimiento: normalizarFechaISO(rc.vencimiento),
           planId: planCoincidente ? planCoincidente.id : null,
           planNombre: rc.plan || 'Sin plan', planVelocidad: planCoincidente ? planCoincidente.velocidad : 0,
           precio: Number(rc.valor||0), puntoConexion: rc.puntoConexion || '',
@@ -2951,7 +2962,10 @@ async function importarDatosDesdeNube(){
     const pagosLocales = getPagos();
     const mapaPagosPorId = {};
     pagosLocales.forEach(p=> mapaPagosPorId[p.id] = p);
+    const idsPagosEliminados = new Set(getPagosEliminados());
+    const reintentarBorrarEnHoja = [];
     (remoto.pagos||[]).forEach(rp=>{
+      if(idsPagosEliminados.has(rp.id)){ reintentarBorrarEnHoja.push(rp.id); return; } // ya se borró aquí: no se vuelve a traer
       const clienteAsoc = mapaClientesPorCedula[limpiarCedulaJS(rp.cedulaCliente)];
       const enviadoRemoto = String(rp.enviadoWhatsapp||'').trim().toUpperCase() === 'SI';
       const local = mapaPagosPorId[rp.id];
@@ -2977,6 +2991,7 @@ async function importarDatosDesdeNube(){
       ? pagosLocales.filter(p=> !idsClientesEliminadosPorAusencia.has(p.clienteId))
       : pagosLocales;
     setPagos(pagosLocalesLimpios);
+    reintentarBorrarEnHoja.forEach(id=> eliminarPagoDeSheet(id));
 
     // ---- Equipos: se fusionan por id ----
     const equiposLocales = getEquipos();
@@ -4647,6 +4662,15 @@ function getEquipos(){ try{ return JSON.parse(localStorage.getItem(DB_KEY_EQUIPO
 function setEquipos(list){ localStorage.setItem(DB_KEY_EQUIPOS, JSON.stringify(list)); fbEnviar('equipos', list); }
 function getPagos(){ try{ return JSON.parse(localStorage.getItem(DB_KEY_PAGOS) || '[]'); }catch(e){ return []; } }
 function setPagos(list){ localStorage.setItem(DB_KEY_PAGOS, JSON.stringify(list)); fbEnviar('pagos', list); }
+const DB_KEY_PAGOS_ELIM = 'mce_pagos_eliminados';
+function getPagosEliminados(){ try{ return JSON.parse(localStorage.getItem(DB_KEY_PAGOS_ELIM) || '[]'); }catch(e){ return []; } }
+function marcarPagosEliminados(ids){
+  const set = new Set(getPagosEliminados());
+  ids.forEach(id=> set.add(id));
+  const arr = Array.from(set).slice(-2000);
+  localStorage.setItem(DB_KEY_PAGOS_ELIM, JSON.stringify(arr));
+  fbEnviar('pagosEliminados', arr);
+}
 function nextReciboNumero(){
   let n = Number(localStorage.getItem(DB_KEY_RECIBO_COUNTER) || '0') + 1;
   localStorage.setItem(DB_KEY_RECIBO_COUNTER, String(n));
@@ -4735,6 +4759,23 @@ function retrocederVencimientoUnMes(fechaActualISO, corteDia){
   let mes = actual.getMonth()-1, anio = actual.getFullYear();
   if(mes < 0){ mes = 11; anio--; }
   return fechaParaDiaDelMes(anio, mes, corteDia);
+}
+
+/* Día de corte del cliente; si no lo tiene guardado, se toma de su fecha de vencimiento */
+function corteDiaCliente(c){
+  if(c && Number(c.corte)) return Number(c.corte);
+  if(c && c.fechaVencimiento){ const d = new Date(c.fechaVencimiento+'T00:00:00'); if(!isNaN(d)) return d.getDate(); }
+  return 1;
+}
+/* Convierte "2026-10-07" o "07-oct-2026" a ISO (YYYY-MM-DD); si no se entiende, devuelve '' */
+function normalizarFechaISO(v){
+  if(!v) return '';
+  const t = String(v).trim();
+  let m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if(m) return m[1]+'-'+pad2(m[2])+'-'+pad2(m[3]);
+  m = t.match(/^(\d{1,2})-([a-zA-Z]{3})[a-z]*-(\d{4})$/);
+  if(m){ const mi = MESES_ABREV.indexOf(m[2].toLowerCase()); if(mi>=0) return m[3]+'-'+pad2(mi+1)+'-'+pad2(m[1]); }
+  return '';
 }
 
 /* Formatea una fecha como "07-ago-2026", igual al formato ya usado en la Hoja de Google */
@@ -5788,6 +5829,7 @@ document.getElementById('formPago').addEventListener('submit', function(e){
   const clienteId = document.getElementById('pClienteId').value;
   const c = getClientes().find(x=>x.id===clienteId);
   if(!c) return;
+  if(clienteYaPago(c.id, periodoActual())){ closeModal('modalRegistrarPago'); renderPagosTable(document.getElementById('buscarPago').value); showToast('Este cliente ya tiene registrado el pago de ' + periodoTexto(periodoActual())); return; }
 
   const pago = {
     id: 'pag_'+Date.now(),
@@ -5805,7 +5847,7 @@ document.getElementById('formPago').addEventListener('submit', function(e){
 
   // Al pagar, la fecha de corte avanza automáticamente un mes hacia adelante
   const fechaAnterior = asegurarFechaVencimiento(c);
-  const nuevaFecha = dateToISO(avanzarVencimientoUnMes(fechaAnterior, c.corte));
+  const nuevaFecha = dateToISO(avanzarVencimientoUnMes(fechaAnterior, corteDiaCliente(c)));
   const clientesLista = getClientes();
   const idxCliente = clientesLista.findIndex(x=>x.id===c.id);
   if(idxCliente>=0){
@@ -5843,13 +5885,14 @@ function eliminarPago(pagoId){
   const nombreCliente = cliente ? cliente.nombre : '(cliente eliminado)';
   if(!confirm('¿Eliminar el pago de ' + nombreCliente + ' por ' + fmtMoney(pago.valor) + '? El cliente volverá a aparecer como pendiente y su fecha de corte regresará a como estaba antes de este pago.')) return;
 
+  marcarPagosEliminados([pagoId]);
   setPagos(getPagos().filter(p=>p.id!==pagoId));
 
   if(cliente){
     const clientesLista = getClientes();
     const idx = clientesLista.findIndex(c=>c.id===cliente.id);
     if(idx>=0){
-      const fechaAnterior = retrocederVencimientoUnMes(clientesLista[idx].fechaVencimiento, clientesLista[idx].corte);
+      const fechaAnterior = retrocederVencimientoUnMes(clientesLista[idx].fechaVencimiento, corteDiaCliente(clientesLista[idx]));
       clientesLista[idx].fechaVencimiento = dateToISO(fechaAnterior);
       setClientes(clientesLista);
       if(getSyncUrl() && getSyncAuto()){ syncClienteToSheet(clientesLista[idx]); }
@@ -5875,15 +5918,59 @@ function reiniciarRecaudo(){
   const periodoNorm = normalizarPeriodo(periodo);
   const pagosMes = getPagos().filter(p=>normalizarPeriodo(p.periodo)===periodoNorm);
   if(pagosMes.length===0){ showToast('No hay pagos registrados este mes para reiniciar'); return; }
-  if(!confirm('Esto borrará los ' + pagosMes.length + ' pagos registrados de ' + periodoTexto(periodo) + ' y todos los clientes volverán a aparecer como pendientes. ¿Continuar?')) return;
-  setPagos(getPagos().filter(p=>normalizarPeriodo(p.periodo)!==periodoNorm));
+  if(!confirm('Esto borrará los ' + pagosMes.length + ' pagos registrados de ' + periodoTexto(periodo) + ', devolverá la fecha de corte de cada cliente a como estaba antes de esos pagos y todos volverán a aparecer como pendientes. ¿Continuar?')) return;
+
+  const idsBorrados = pagosMes.map(p=>p.id);
+  marcarPagosEliminados(idsBorrados);
+  setPagos(getPagos().filter(p=>idsBorrados.indexOf(p.id)===-1));
+
+  // Cada pago borrado había adelantado un mes la fecha de corte: se regresa para no romper la secuencia
+  const clientesLista = getClientes();
+  const tocados = [];
+  pagosMes.forEach(p=>{
+    const c = clientesLista.find(x=>x.id===p.clienteId);
+    if(!c || !c.fechaVencimiento) return;
+    c.fechaVencimiento = dateToISO(retrocederVencimientoUnMes(c.fechaVencimiento, corteDiaCliente(c)));
+    if(tocados.indexOf(c)===-1) tocados.push(c);
+  });
+  if(tocados.length) setClientes(clientesLista);
+
   renderPagosTable(document.getElementById('buscarPago').value);
+  renderClientesTable();
   renderStats();
-  showToast('Recaudo del mes reiniciado');
-  logAccion('Recaudo reiniciado', periodoTexto(periodo) + ' — ' + pagosMes.length + ' pagos eliminados');
+  showToast('Recaudo del mes reiniciado y fechas de corte regresadas');
+  logAccion('Recaudo reiniciado', periodoTexto(periodo) + ' — ' + pagosMes.length + ' pagos eliminados, ' + tocados.length + ' fechas de corte regresadas');
   if(getSyncUrl() && getSyncAuto()){
     pagosMes.forEach(p=> eliminarPagoDeSheet(p.id));
+    tocados.forEach(c=> syncClienteToSheet(c));
   }
+}
+
+/* Repara el ciclo: la fecha de corte de cada cliente = día de corte en el mes SIGUIENTE a su último periodo pagado */
+function repararCicloPagos(){
+  if(!esSuperAdmin()){ showToast('Solo la cuenta administradora puede reparar el ciclo de pagos'); return; }
+  const pagos = getPagos();
+  const clientes = getClientes();
+  const cambios = [];
+  clientes.forEach(c=>{
+    const periodos = pagos.filter(p=>p.clienteId===c.id).map(p=>normalizarPeriodo(p.periodo)).filter(x=>/^\d{4}-\d{2}$/.test(x)).sort();
+    if(!periodos.length) return;
+    const ult = periodos[periodos.length-1].split('-');
+    const anio = Number(ult[0]), mes = Number(ult[1]); // mes 1-12: como índice 0-11 ya es el mes siguiente
+    const nueva = dateToISO(fechaParaDiaDelMes(mes===12 ? anio+1 : anio, mes===12 ? 0 : mes, corteDiaCliente(c)));
+    if(nueva !== c.fechaVencimiento) cambios.push({ c, nueva });
+  });
+  if(!cambios.length){ showToast('El ciclo de pagos ya está en orden'); return; }
+  const ejemplo = cambios.slice(0,6).map(x=> x.c.nombre + ': ' + (x.c.fechaVencimiento ? formatearFechaCorte(x.c.fechaVencimiento) : 'sin fecha') + ' → ' + formatearFechaCorte(x.nueva)).join('\n');
+  if(!confirm('Se corregirá la fecha de corte de ' + cambios.length + ' cliente(s) según su último periodo pagado.\n\n' + ejemplo + (cambios.length>6 ? '\n...' : '') + '\n\n¿Continuar?')) return;
+  cambios.forEach(x=>{ x.c.fechaVencimiento = x.nueva; });
+  setClientes(clientes);
+  renderClientesTable();
+  renderPagosTable(document.getElementById('buscarPago').value);
+  renderStats();
+  showToast('Ciclo reparado en ' + cambios.length + ' cliente(s)');
+  logAccion('Ciclo de pagos reparado', cambios.length + ' fechas de corte corregidas');
+  if(getSyncUrl() && getSyncAuto()){ cambios.forEach(x=> syncClienteToSheet(x.c)); }
 }
 
 function verReciboExistente(clienteId){
@@ -7502,6 +7589,7 @@ try{
 fbSincronizar('clientes', DB_KEY_CLIENTES, ['renderClientesTable','renderStats']);
 fbSincronizar('planes', DB_KEY_PLANES, ['renderPlanesTable']);
 fbSincronizar('pagos', DB_KEY_PAGOS, ['renderPagosTable','renderStats']);
+fbSincronizar('pagosEliminados', DB_KEY_PAGOS_ELIM, []);
 fbSincronizar('equipos', DB_KEY_EQUIPOS, ['renderEquiposTable']);
 fbSincronizar('usuarios', DB_KEY_USUARIOS, ['renderUsuariosTable']);
 fbSincronizar('recordatorios', DB_KEY_RECORDATORIOS, ['renderListaRecordatorios']);
