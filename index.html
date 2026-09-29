@@ -5077,6 +5077,26 @@ function badgeForPropietario(propietario){
   if(propietario==='SOCIA') return '<span class="badge badge-purple">SOCIA</span>';
   return '<span class="badge">—</span>';
 }
+/* El periodo que se cobra a un cliente sale de SU fecha de corte (no del calendario):
+   si su corte ya está en octubre, el siguiente pago es "Octubre", aunque hoy sea septiembre. */
+function periodoCliente(c){
+  const f = normalizarFechaISO(c && c.fechaVencimiento);
+  if(f) return f.slice(0,7);
+  return periodoActual();
+}
+/* Pago vigente: el del periodo indicado o uno posterior (pagó adelantado) */
+function pagoVigente(clienteId, periodo){
+  const base = normalizarPeriodo(periodo);
+  const lista = getPagos().filter(p=>p.clienteId===clienteId && normalizarPeriodo(p.periodo) >= base);
+  lista.sort((a,b)=> normalizarPeriodo(b.periodo).localeCompare(normalizarPeriodo(a.periodo)));
+  return lista[0] || null;
+}
+/* Valor a cobrar: el del cliente, o el del plan si el cliente quedó en 0 */
+function valorCobroCliente(c){
+  if(Number(c.precio) > 0) return Number(c.precio);
+  const plan = getPlanes().find(pl=> pl.id===c.planId);
+  return plan ? Number(plan.precio||0) : 0;
+}
 function clienteYaPago(clienteId, periodo){
   const periodoNorm = normalizarPeriodo(periodo);
   return getPagos().some(p=>p.clienteId===clienteId && normalizarPeriodo(p.periodo)===periodoNorm);
@@ -5781,8 +5801,8 @@ function renderPagosTable(filtro){
   empty.style.display='none';
 
   tbody.innerHTML = clientes.map(c=>{
-    const pagado = clienteYaPago(c.id, periodo);
-    const pagoActual = pagado ? getPagos().find(p=>p.clienteId===c.id && normalizarPeriodo(p.periodo)===normalizarPeriodo(periodo)) : null;
+    const pagoActual = pagoVigente(c.id, periodo);
+    const pagado = !!pagoActual;
     const puedeRegistrar = esSuperAdmin() || permisosActuales().pagos.registrar;
     return `
     <tr>
@@ -5816,8 +5836,8 @@ function abrirModalPago(clienteId){
   if(!c) return;
   document.getElementById('pClienteId').value = c.id;
   document.getElementById('pClienteNombre').value = c.nombre + ' — ' + (c.vereda||'');
-  document.getElementById('pPeriodo').value = periodoTexto(periodoActual());
-  document.getElementById('pValor').value = c.precio;
+  document.getElementById('pPeriodo').value = periodoTexto(periodoCliente(c));
+  document.getElementById('pValor').value = valorCobroCliente(c);
   document.getElementById('pFormaPago').value = 'Efectivo';
   document.getElementById('pAutorizadoPor').value = document.getElementById('pAutorizadoPor').value || 'Administrador';
   document.getElementById('modalRegistrarPago').classList.add('active');
@@ -5829,14 +5849,15 @@ document.getElementById('formPago').addEventListener('submit', function(e){
   const clienteId = document.getElementById('pClienteId').value;
   const c = getClientes().find(x=>x.id===clienteId);
   if(!c) return;
-  if(clienteYaPago(c.id, periodoActual())){ closeModal('modalRegistrarPago'); renderPagosTable(document.getElementById('buscarPago').value); showToast('Este cliente ya tiene registrado el pago de ' + periodoTexto(periodoActual())); return; }
+  const periodoAPagar = periodoCliente(c);
+  if(clienteYaPago(c.id, periodoAPagar)){ closeModal('modalRegistrarPago'); renderPagosTable(document.getElementById('buscarPago').value); showToast('Este cliente ya tiene registrado el pago de ' + periodoTexto(periodoAPagar) + '. Usa "Reparar ciclo de pagos" en Configuración.'); return; }
 
   const pago = {
     id: 'pag_'+Date.now(),
     clienteId,
-    periodo: periodoActual(),
+    periodo: periodoAPagar,
     fecha: new Date().toISOString(),
-    valor: Number(document.getElementById('pValor').value || c.precio),
+    valor: Number(document.getElementById('pValor').value || valorCobroCliente(c)),
     formaPago: document.getElementById('pFormaPago').value || 'Efectivo',
     autorizadoPor: document.getElementById('pAutorizadoPor').value.trim() || 'Administrador',
     numero: nextReciboNumero()
@@ -5916,7 +5937,8 @@ function reiniciarRecaudo(){
   if(!esSuperAdmin()){ showToast('Solo la cuenta administradora puede reiniciar el recaudo'); return; }
   const periodo = periodoActual();
   const periodoNorm = normalizarPeriodo(periodo);
-  const pagosMes = getPagos().filter(p=>normalizarPeriodo(p.periodo)===periodoNorm);
+  const hoyMes = periodoActual();
+  const pagosMes = getPagos().filter(p=> normalizarPeriodo(p.periodo)===periodoNorm || (p.fecha && String(p.fecha).slice(0,7)===hoyMes));
   if(pagosMes.length===0){ showToast('No hay pagos registrados este mes para reiniciar'); return; }
   if(!confirm('Esto borrará los ' + pagosMes.length + ' pagos registrados de ' + periodoTexto(periodo) + ', devolverá la fecha de corte de cada cliente a como estaba antes de esos pagos y todos volverán a aparecer como pendientes. ¿Continuar?')) return;
 
@@ -5976,7 +5998,7 @@ function repararCicloPagos(){
 function verReciboExistente(clienteId){
   const periodo = periodoActual();
   const periodoNorm = normalizarPeriodo(periodo);
-  const pago = getPagos().find(p=>p.clienteId===clienteId && normalizarPeriodo(p.periodo)===periodoNorm);
+  const pago = pagoVigente(clienteId, periodo);
   const c = getClientes().find(x=>x.id===clienteId);
   if(!pago || !c){ showToast('No se encontró el recibo'); return; }
   mostrarRecibo(c, pago);
