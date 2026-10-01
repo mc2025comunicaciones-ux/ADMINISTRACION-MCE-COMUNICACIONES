@@ -1348,6 +1348,16 @@
         <div class="form-field full">
           <label>Ubicación (GPS)</label>
           <div class="coord-display" id="coordDisplay">Sin coordenadas — usa tu ubicación o marca en el mapa</div>
+          <div style="margin-top:10px;">
+            <label style="font-size:12px; color:var(--text-muted); display:block; margin-bottom:5px;">Coordenadas manuales (pega o escribe: latitud, longitud)</label>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <input type="text" id="cCoordManual" inputmode="decimal" autocomplete="off" placeholder="Ej: 1.9224754903542427, -76.05775319119618" style="flex:1; min-width:220px; font-family:'JetBrains Mono',monospace;" onkeydown="if(event.key==='Enter'){event.preventDefault();aplicarCoordenadasManual();}" onpaste="setTimeout(aplicarCoordenadasManual,0)">
+              <button type="button" class="btn btn-outline btn-small" onclick="aplicarCoordenadasManual()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                Ubicar en el mapa
+              </button>
+            </div>
+          </div>
           <div class="map-actions">
             <button type="button" class="btn btn-outline btn-small" onclick="usarMiUbicacion()">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
@@ -5469,6 +5479,7 @@ function openClienteModal(id){
   document.getElementById('clienteId').value = '';
   selectedCoords = null;
   document.getElementById('coordDisplay').textContent = 'Sin coordenadas — usa tu ubicación o marca en el mapa';
+  const _cm = document.getElementById('cCoordManual'); if(_cm) _cm.value = '';
   document.getElementById('clienteModalTitle').textContent = 'Nuevo Cliente';
   renderPlanSelectInCliente();
   renderIpSelectInCliente(null, null, '');
@@ -5514,7 +5525,7 @@ function openClienteModal(id){
           }
         }
         renderPlanSelectInCliente(planIdResuelto || c.planId);
-        if(c.lat){ setCoords(c.lat, c.lng); }
+        if(c.lat){ setCoords(c.lat, c.lng, 17); }
       }
     }
   }, 80);
@@ -5723,13 +5734,45 @@ function initMiniMap(lat, lng){
   });
   setTimeout(()=>miniMapInstance.invalidateSize(), 100);
 }
-function setCoords(lat, lng){
+function setCoords(lat, lng, zoom){
+  lat = Number(lat); lng = Number(lng);
   selectedCoords = {lat, lng};
   document.getElementById('coordDisplay').textContent = `Lat: ${lat.toFixed(6)}  •  Lng: ${lng.toFixed(6)}`;
+  // Mantiene el cuadro manual sincronizado con el punto marcado (clic, arrastre o GPS)
+  const inp = document.getElementById('cCoordManual');
+  if(inp && document.activeElement !== inp){ inp.value = lat + ', ' + lng; }
   if(miniMapInstance){
     if(miniMarker) miniMarker.setLatLng([lat,lng]);
-    miniMapInstance.setView([lat,lng], miniMapInstance.getZoom());
+    miniMapInstance.setView([lat,lng], zoom || miniMapInstance.getZoom());
   }
+}
+/* Convierte un texto como "1.9224754903542427, -76.05775319119618" en {lat, lng}.
+   Acepta coma o espacio/punto y coma como separador y también coma decimal
+   (ej. "1,9224 -76,0577"). Devuelve null si no es válido. */
+function parsearCoordenadas(texto){
+  if(!texto) return null;
+  let t = String(texto).trim().replace(/[°º]/g,'').replace(/[()\[\]]/g,'');
+  let partes;
+  if(/[;]/.test(t)){ partes = t.split(';'); }
+  else if(/,\s+/.test(t) || (t.match(/,/g)||[]).length === 1 && /\d,\s*-?\d+\.\d/.test(t)){ partes = t.split(/,\s*/); }
+  else { partes = t.split(/\s+/); }
+  partes = partes.map(x=>x.trim().replace(',', '.')).filter(Boolean);
+  if(partes.length !== 2) return null;
+  const lat = parseFloat(partes[0]), lng = parseFloat(partes[1]);
+  if(isNaN(lat) || isNaN(lng)) return null;
+  if(lat < -90 || lat > 90 || lng < -180 || lng > 180){ return {error:'rango'}; }
+  return {lat, lng};
+}
+function aplicarCoordenadasManual(){
+  const inp = document.getElementById('cCoordManual');
+  const txt = inp.value.trim();
+  if(!txt){ showToast('Escribe las coordenadas: latitud, longitud'); return; }
+  const r = parsearCoordenadas(txt);
+  if(!r){ showToast('Formato no válido. Ejemplo: 1.9224754903542427, -76.05775319119618'); return; }
+  if(r.error){ showToast('Coordenadas fuera de rango (lat -90 a 90, lng -180 a 180)'); return; }
+  setCoords(r.lat, r.lng, 18);
+  inp.value = r.lat + ', ' + r.lng;
+  showToast('Ubicación marcada en el mapa');
 }
 function usarMiUbicacion(){
   if(!navigator.geolocation){ showToast('Tu navegador no soporta geolocalización'); return; }
