@@ -2291,8 +2291,6 @@ function aplicarPermisosPropietarios(){
       const sel = document.getElementById(id); if(!sel) return;
       Array.from(sel.options).forEach(o=>{ if(o.value === prop) o.remove(); });
     });
-    const chk = document.getElementById('filtroMapa'+prop);
-    if(chk){ chk.checked = false; const lb = chk.closest('label'); if(lb) lb.style.display = 'none'; }
   });
 }
 function ocultarTarjetasTotalPropietario(grid){
@@ -6582,14 +6580,15 @@ function propietariosFiltradosMapa(){
 function marcarFiltroMapa(marcar){
   ['EDWIN','IVAN','SOCIA'].forEach(prop=>{
     const chk = document.getElementById('filtroMapa'+prop);
-    if(chk && propietariosPermitidos().indexOf(prop) !== -1) chk.checked = marcar;
+    if(chk) chk.checked = marcar;
   });
   initBigMap();
 }
 
 function initBigMap(){
   const propietariosActivos = propietariosFiltradosMapa();
-  const clientes = getClientes().filter(c=>propietariosActivos.includes(c.propietario));
+  // El mapa es independiente de los propietarios asignados al usuario: muestra todos los clientes (solo lectura)
+  const clientes = getClientesTodos().filter(c=>propietariosActivos.includes(c.propietario));
   const withCoords = clientes.filter(c=>c.lat && c.lng);
   const centerLat = withCoords.length ? withCoords[0].lat : DEFAULT_LAT;
   const centerLng = withCoords.length ? withCoords[0].lng : DEFAULT_LNG;
