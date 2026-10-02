@@ -2700,6 +2700,18 @@ async function syncClienteToSheet(cliente){
   }
 }
 
+/* Guarda el link del último recibo en el cliente (y por tanto en Firebase) para que la página pública lo muestre */
+function guardarReciboUrlCliente(clienteId, url, pago){
+  try{
+    const lista = getClientes();
+    const c = lista.find(function(x){ return x.id === clienteId; });
+    if(!c) return;
+    c.reciboUrl = url;
+    c.reciboNumero = (pago && pago.numero) || '';
+    setClientes(lista);
+  }catch(e){ console.warn('No se pudo guardar el link del recibo en el cliente:', e); }
+}
+
 /* Sube el PDF del recibo a Drive (vía Apps Script) y actualiza el link en la Hoja para esa cédula */
 async function syncReciboToSheet(cliente, pago, base64Pdf){
   const url = getSyncUrl();
@@ -6180,6 +6192,7 @@ function generarPDFRecibo(cliente, pago){
           const base64Pdf = datauri.split(',')[1];
           const rRecibo = await syncReciboToSheet(cliente, pago, base64Pdf);
           if(rRecibo && rRecibo.ok){
+            if(rRecibo.url){ guardarReciboUrlCliente(cliente.id, rRecibo.url, pago); }
             showToast('Recibo disponible para el cliente en la página pública');
             logAccion('Recibo sincronizado', cliente.nombre + ' — Recibo N° ' + pago.numero);
           } else {
