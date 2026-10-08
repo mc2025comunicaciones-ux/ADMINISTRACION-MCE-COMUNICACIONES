@@ -6324,6 +6324,9 @@ function generarPDFRecibo(cliente, pago){
 
 /* ---------- PDF en formato POS para impresora térmica de 58 mm ---------- */
 const POS_NOMBRE_EMPRESA = 'MCE COMUNICACIONES';
+// Logo en blanco y negro (1 bit, letras negras sobre fondo blanco) para la impresora térmica
+const POS_LOGO_B64 = "data:image/png;base64,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";
+const POS_LOGO_ANCHO = 28; // mm (pon 0 para imprimir el ticket sin logo)
 // Márgenes (mm) del ticket de 48 mm. Si la impresora te corta texto a la derecha, sube POS_MARGEN_DER; si a la izquierda, sube POS_MARGEN_IZQ.
 const POS_MARGEN_IZQ = 2;
 const POS_MARGEN_DER = 6;
@@ -6350,6 +6353,9 @@ function generarPDFReciboPOS(cliente, pago){
       // Contorno fino en el texto: engrosa el trazo para que la térmica lo imprima más negro
       doc.setLineWidth(0.12); doc.setDrawColor(0,0,0); doc.setTextColor(0,0,0);
       const RM = { renderingMode:'fillThenStroke' };
+      if(POS_LOGO_ANCHO > 0){
+        try{ const lw = POS_LOGO_ANCHO, lhg = lw*219/240; doc.addImage(POS_LOGO_B64, 'PNG', cx-lw/2, y, lw, lhg); y += lhg + 6; }catch(e){ console.warn('Logo POS no disponible', e); }
+      }
       const lh = (size)=> size*0.42;
       const centrado = (t, size, bold)=>{
         doc.setFont('courier','bold'); doc.setFontSize(size);
